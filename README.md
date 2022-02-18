@@ -20,4 +20,10 @@ its variational form that yields
 </p>
 
 Each of the terms on the right-hand-side of the variational form represents 
-an operator.
+an operator. In matrix form, the equation becomes
+
+<p align="center">
+    <img src=matrix_form.png/>
+</p>
+
+In term of the temporal algorithm, we will use the Runge-Kutta method.
