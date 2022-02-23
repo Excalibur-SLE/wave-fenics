@@ -29,4 +29,8 @@ an operator. In matrix form, the equation becomes
 In term of the temporal algorithm, we will use the Runge-Kutta method.
 
 
+![image](https://user-images.githubusercontent.com/15614155/155312893-5a04ad81-cb15-4902-a988-b231df3fd83d.png)
+
+
+
 ![Selection_063](https://user-images.githubusercontent.com/15614155/155312723-e27da569-2173-4657-8bc6-8fd147c1e01c.png)
