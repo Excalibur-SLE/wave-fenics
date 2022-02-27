@@ -50,7 +50,7 @@ protected:
   std::shared_ptr<mesh::Mesh> mesh;
   std::shared_ptr<fem::Constant<double>> c0;
   std::shared_ptr<fem::Form<double>> a, L;
-  std::shared_ptr<fem::Function<double>> u, v, g, u_n, v_n, u_interp;
+  std::shared_ptr<fem::Function<double>> u, v, g, u_n, v_n;
   std::shared_ptr<la::Vector<double>> m, b;
 
   xtl::span<double> _g, out;
@@ -64,7 +64,7 @@ protected:
   std::shared_ptr<StiffnessOperator<double>> stiff_op;
 
 public:
-  std::shared_ptr<fem::FunctionSpace> V, V_interp;
+  std::shared_ptr<fem::FunctionSpace> V;
 
   LinearGLLOpt(std::shared_ptr<mesh::Mesh> Mesh,
                std::shared_ptr<mesh::MeshTags<std::int32_t>> Meshtags, int& degreeOfBasis,
@@ -76,8 +76,6 @@ public:
     mesh = Mesh;
     V = std::make_shared<fem::FunctionSpace>(
         fem::create_functionspace(functionspace_form_forms_L, "g", Mesh));
-    V_interp = std::make_shared<fem::FunctionSpace>(
-        fem::create_functionspace(functionspace_form_forms_a_interp, "u_interp", Mesh));
 
     index_map = V->dofmap()->index_map;
     bs = V->dofmap()->index_map_bs();
@@ -88,8 +86,6 @@ public:
     g = std::make_shared<fem::Function<double>>(V);
     u_n = std::make_shared<fem::Function<double>>(V);
     v_n = std::make_shared<fem::Function<double>>(V);
-
-    u_interp = std::make_shared<fem::Function<double>>(V_interp);
 
     _g = g->x()->mutable_array();
 

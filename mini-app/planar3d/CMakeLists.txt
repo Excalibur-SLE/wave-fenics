@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(PROJECT_NAME linear_planar3d_opt)
+set(PROJECT_NAME planar3d)
 project(${PROJECT_NAME})
 
 # Set C++17 standard
@@ -19,7 +19,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
 
 find_package(DOLFINX REQUIRED)
 
-include_directories("../../common" ".")
+include_directories("../common" ".")
 
 # Executable
 add_executable(${PROJECT_NAME} forms.c main.cpp)
