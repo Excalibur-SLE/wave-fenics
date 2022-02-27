@@ -1,3 +1,7 @@
+from ufl import (FiniteElement, VectorElement, Mesh,
+                 FunctionSpace, hexahedron, Coefficient, Constant,
+                 TestFunction, inner, ds, dx)
+
 element = FiniteElement("Lagrange", hexahedron, 4, variant="gll")
 
 coord_element = VectorElement("Lagrange", hexahedron, 1)
