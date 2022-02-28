@@ -12,6 +12,8 @@
 #include <cuda/la.hpp>
 #include <cuda/utils.hpp>
 
+#include <cuda_kernels.hpp>
+
 using namespace dolfinx;
 namespace po = boost::program_options;
 
@@ -68,21 +70,26 @@ int main(int argc, char* argv[]) {
 
     // prefetch data to gpu
     linalg::prefetch(rank, x);
-
+    
     // Scatter forward (owner to ghost -> one to many map)
     const dolfinx::graph::AdjacencyList<std::int32_t>& shared_indices = x.map()->scatter_fwd_indices();
 
     xtl::span<const double> local_data = x.array();    
     const std::vector<std::int32_t>& indices = shared_indices.array();
-    std::vector<double> send_buffer(indices.size());
-    for (std::size_t i = 0; i < indices.size(); ++i)
-      send_buffer[i] = local_data[indices[i]];
 
+    double *d_send_buffer = nullptr;
+    std::int32_t *d_indices = nullptr;
+    cudaMalloc((void**)&d_send_buffer, indices.size() * sizeof(double));
+    cudaMalloc((void**)&d_indices, indices.size() * sizeof(std::int32_t));    
+    cudaMemcpy(d_indices, indices.data(), indices.size() * sizeof(std::int32_t), cudaMemcpyHostToDevice);
+
+    // FIXME: make sure data is on-device
+    gather(indices.size(), d_indices, local_data.data(), d_send_buffer);
+  
     // Recv displacements and sizes
     const std::vector<std::int32_t>& displs_recv_fwd = x.map()->scatter_fwd_receive_offsets();
     std::vector<std::int32_t> sizes_recv_fwd(displs_recv_fwd.size());
     std::adjacent_difference(displs_recv_fwd.begin(), displs_recv_fwd.end(), sizes_recv_fwd.begin());
-
     std::vector<double> recv_buffer(displs_recv_fwd.back());
 
     // Send displacements and sizes
@@ -91,7 +98,7 @@ int main(int argc, char* argv[]) {
     std::adjacent_difference(displs_send_fwd.begin(), displs_send_fwd.end(), sizes_send_fwd.begin());
 
     // Start send/receive
-    MPI_Neighbor_alltoallv(send_buffer.data(), sizes_send_fwd.data() + 1,
+    MPI_Neighbor_alltoallv(d_send_buffer, sizes_send_fwd.data() + 1,
                            displs_send_fwd.data(), dolfinx::MPI::mpi_type<double>(),
                            recv_buffer.data(), sizes_recv_fwd.data() + 1,
                            displs_recv_fwd.data(), dolfinx::MPI::mpi_type<double>(),
@@ -105,6 +112,8 @@ int main(int argc, char* argv[]) {
       remote_data[i] = recv_buffer[ghost_pos_recv_fwd[i]];
     
     cudaProfilerStop();
+    cudaFree(d_send_buffer);
+    cudaFree(d_indices);    
   }
 
   common::subsystem::finalize_mpi();
