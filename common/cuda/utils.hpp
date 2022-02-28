@@ -9,7 +9,7 @@
 #include <dolfinx/common/MPI.h>
 #include <dolfinx/la/Vector.h>
 
-namespace CUDA {
+namespace utils {
 
 template <typename C>
 void assert_cuda(C e) {

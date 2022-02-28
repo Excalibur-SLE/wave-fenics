@@ -7,6 +7,7 @@
 // Helper functions
 #include <cuda/allocator.hpp>
 #include <cuda/la.hpp>
+#include <cuda/utils.hpp>
 
 using namespace dolfinx;
 
@@ -19,20 +20,7 @@ int main(int argc, char* argv[]) {
   {
     // MPI
     MPI_Comm mpi_comm{MPI_COMM_WORLD};
-    int rank;
-    MPI_Comm_rank(mpi_comm, &rank);
-    int mpi_size;
-    MPI_Comm_size(mpi_comm, &mpi_size);
-
-    int numGpus = 0;
-    cudaGetDeviceCount(&numGpus);
-    std::cout << numGpus << " " << mpi_size << std::endl;
-    cudaSetDevice(rank);
-
-    if (numGpus < mpi_size && mpi_size != 1) {
-      throw std::runtime_error("The number of MPI processes should be less or equal the "
-                               "number of available devices.");
-    }
+    int rank = utils::set_device(mpi_comm);
 
     // Read mesh and mesh tags
     std::array<std::array<double, 3>, 2> p = {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}};
