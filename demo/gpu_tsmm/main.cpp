@@ -13,17 +13,17 @@ int main(int argc, char* argv[]) {
 
   MPI_Init(&argc, &argv);
 
-  int ndofs = 64;
+  int ndofs = 125;
   int ncells = 100000;
 
   cublasHandle_t handle;
   cublasCreate(&handle);
 
   double* xe;
-  unsigned int size_A = ncells * ndofs;
-  unsigned int mem_size_A = sizeof(double) * size_A;
-  assert_cublas(cudaMalloc((void**)&xe, mem_size_A));
-  cudaMemset(&xe, 0.5, ncells * ndofs * sizeof(double));
+  unsigned int size_xe = ncells * ndofs;
+  unsigned int mem_size_xe = sizeof(double) * size_xe;
+  assert_cublas(cudaMalloc((void**)&xe, mem_size_xe));
+  cudaMemset(&xe, 0.5, mem_size_xe);
 
   double* xq;
   unsigned int size_xq = ncells * ndofs;
@@ -48,14 +48,14 @@ int main(int argc, char* argv[]) {
   double t = MPI_Wtime();
   cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ncells, ndofs, ndofs, &alpha, xe, ncells,
               phi, ndofs, &beta, xq, ncells);
-
   cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ncells, ndofs, ndofs, &alpha, xq, ncells,
               phi, ndofs, &beta, ue, ncells);
   cudaDeviceSynchronize();
   t = MPI_Wtime() - t;
 
   std::cout << "Number of cells: " << ncells;
-  std::cout << "\nElapsed time: " << t;
+  std::cout << "\nNumber of dofs: " << ndofs;
+  std::cout << "\n#GFLOPs: " << (4 * ncells * ndofs * ndofs) / t / 1e9;
 
   MPI_Finalize();
 
