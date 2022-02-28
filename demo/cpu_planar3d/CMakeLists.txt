@@ -15,11 +15,9 @@ add_custom_command(
   DEPENDS forms.ufl
 )
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
-
 find_package(DOLFINX REQUIRED)
 
-include_directories("../common" ".")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../../common" ".")
 
 # Executable
 add_executable(${PROJECT_NAME} forms.c main.cpp)
