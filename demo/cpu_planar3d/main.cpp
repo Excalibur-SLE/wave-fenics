@@ -22,29 +22,18 @@ int main(int argc, char* argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     // Material parameters
-    double speedOfSound = 1500.0;    // (m/s)
-    double densityOfMedium = 1000.0; // (kg/m^3)
-    double coeffOfNonlinearity = 3.5;
-    double diffusivityOfSound = 4.33e-6;
+    double speedOfSound = 1500.0;                            // (m/s)
 
     // Source parameters
-    double sourceFrequency = 0.5e6;                           // (Hz)
-    double angularFrequency = 2.0 * M_PI * sourceFrequency; // (rad/s)
-    double pressureAmplitude = 60000;                     // (Pa)
-    double period = 1 / sourceFrequency;                    // (s)
+    double sourceFrequency = 0.5e6;                          // (Hz)
+    double pressureAmplitude = 60000;                        // (Pa)
+    double period = 1 / sourceFrequency;                     // (s)
 
     // Domain parameters
-    double shockFormationDistance = densityOfMedium * pow(speedOfSound, 3) / coeffOfNonlinearity
-                                    / pressureAmplitude / angularFrequency; // (m)
-    double domainLength = 0.1;                                              // (m)
-
-    // Physical parameters
-    double wavelength = speedOfSound / sourceFrequency; // (m)
-    double wavenumber = 2.0 * M_PI / wavelength;        // (m^-1)
+    double domainLength = 0.1;                               // (m)
 
     // FE parameters
     int degreeOfBasis = 4;
-    double numberOfWaves = domainLength / wavelength;
 
     // Read mesh and mesh tags
     auto element = fem::CoordinateElement(mesh::CellType::hexahedron, 1);

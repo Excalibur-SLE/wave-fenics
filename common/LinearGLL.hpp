@@ -203,8 +203,6 @@ public:
     double dt = timeStep;
     int step = 0;
     int nstep = (finalTime - startTime) / timeStep + 1;
-    int numStepPerPeriod = T_ / dt + 1;
-    int nstep_period = 0;
 
     // Time-stepping vectors
     std::shared_ptr<la::Vector<double>> u_, v_, un, vn, u0, v0, ku, kv;
