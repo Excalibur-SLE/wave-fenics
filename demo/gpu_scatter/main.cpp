@@ -51,9 +51,9 @@ int main(int argc, char* argv[]) {
     auto mesh = std::make_shared<mesh::Mesh>(mesh::create_box(
         mpi_comm, p, n, mesh::CellType::hexahedron, mesh::GhostMode::none));
 
-    // Create a Basix continuous Lagrange element of degree 1
+    // Create a Basix continuous Lagrange element of given degree
     basix::FiniteElement e = basix::element::create_lagrange(
-        mesh::cell_type_to_basix_type(mesh::CellType::hexahedron), 1,
+        mesh::cell_type_to_basix_type(mesh::CellType::hexahedron), degree,
         basix::element::lagrange_variant::equispaced, true);
 
     // Create a scalar function space
