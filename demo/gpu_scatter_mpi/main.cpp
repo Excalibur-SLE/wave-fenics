@@ -69,6 +69,7 @@ int main(int argc, char* argv[]) {
     // Scatter forward (owner to ghost -> one to many map)
     const dolfinx::graph::AdjacencyList<std::int32_t>& shared_indices = x.map()->scatter_fwd_indices();
 
+    xtl::span<const double> local_data = x.array();    
     const std::vector<std::int32_t>& indices = shared_indices->array();
     std::vector<double> send_buffer(indices.size());
     for (std::size_t i = 0; i < indices.size(); ++i)
@@ -94,6 +95,7 @@ int main(int argc, char* argv[]) {
                            x.map()->comm(dolfinx::common::IndexMap::Direction::forward));
 
     // Copy into ghost area ("remote_data")
+    xtl::span<double> remote_data(x.mutable_array().data() + x.map()->size_local(), x.map()->num_ghosts());
     const std::vector<std::int32_t>& ghost_pos_recv_fwd = x.map()->scatter_fwd_ghost_positions();
     assert(remote_data.size() == ghost_pos_recv_fwd.size());
     for (std::size_t i = 0; i < ghost_pos_recv_fwd.size(); ++i)
