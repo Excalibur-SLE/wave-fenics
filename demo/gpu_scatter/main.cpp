@@ -3,6 +3,7 @@
 #include <dolfinx.h>
 #include <dolfinx/io/XDMFFile.h>
 #include <iostream>
+#include <boost/program_options.hpp>
 
 #include <cuda_profiler_api.h>
 
@@ -12,11 +13,31 @@
 #include <cuda/utils.hpp>
 
 using namespace dolfinx;
-
-int degree = 1;
-std::size_t Nx = 32;
+namespace po = boost::program_options;
 
 int main(int argc, char* argv[]) {
+
+  po::options_description desc("Allowed options");
+  desc.add_options()("help,h", "print usage message")(
+                                                      "size", po::value<int>()->default_value(32)),
+    "degree", po::value<int>()->default_value(1));
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv)
+                .options(desc)
+                .allow_unregistered()
+                .run(), vm);
+  po::notify(vm);
+
+  if (vm.count("help"))
+  {
+    std::cout << desc << "\n";
+    return 0;
+  }
+
+  const int Nx = vm["size"].as<int>();
+  const int degree = vm["degree"].as<int>();
+
   common::subsystem::init_logging(argc, argv);
   common::subsystem::init_mpi(argc, argv);
   {
