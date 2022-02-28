@@ -5,6 +5,7 @@
 #include <dolfinx/io/XDMFFile.h>
 #include <iostream>
 
+#include <cublas_v2.h>
 #include <cuda_profiler_api.h>
 
 // Helper functions
@@ -15,6 +16,10 @@
 using namespace dolfinx;
 namespace po = boost::program_options;
 
+void assert_cublas(cudaError_t e) {
+  if (e != cudaSuccess)
+    throw std::runtime_error(" Unable to allocate memoy - cublas error");
+}
 int main(int argc, char* argv[]) {
 
   po::options_description desc("Allowed options");
@@ -68,31 +73,41 @@ int main(int argc, char* argv[]) {
     cublasCreate(&handle);
 
     double* xe;
-    cudaMalloc(&xe, ncells * ndofs * sizeof(double));
+    unsigned int size_A = ncells * ndofs;
+    unsigned int mem_size_A = sizeof(double) * size_A;
+    assert_cublas(cudaMalloc((void**)&xe, mem_size_A));
     cudaMemset(&xe, 0.5, ncells * ndofs * sizeof(double));
 
     double* xq;
-    cudaMalloc(&xq, ncells * ndofs * sizeof(double));
+    unsigned int size_xq = ncells * ndofs;
+    unsigned int mem_size_xq = sizeof(double) * size_xq;
+    assert_cublas(cudaMalloc((void**)&xq, mem_size_xq));
     cudaMemset(&xq, 0, ncells * ndofs * sizeof(double));
 
     double* ue;
-    cudaMalloc(&ue, ncells * ndofs * sizeof(double));
+    unsigned int size_ue = ncells * ndofs;
+    unsigned int mem_size_ue = sizeof(double) * size_ue;
+    assert_cublas(cudaMalloc((void**)&ue, mem_size_ue));
     cudaMemset(&ue, 0, ncells * ndofs * sizeof(double));
 
     double* phi;
-    cudaMalloc(&phi, ndofs * ndofs * sizeof(double));
+    unsigned int size_phi = ncells * ndofs;
+    unsigned int mem_size_phi = sizeof(double) * size_phi;
+    assert_cublas(cudaMalloc((void**)&phi, mem_size_phi));
 
     double alpha = 1;
     double beta = 0;
 
     double t = MPI_Wtime();
-    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ncells, ndofs, ndofs, &alpha, xe, ndofs,
-                phi, ndofs, &beta, xq, ndofs);
-    // TODO: Transform operation - multiplication by the determinant of the jacobian
-    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, ncells, ndofs, ndofs, &alpha, xq, ndofs,
-                phi, ndofs, &beta, ue, ndofs);
+    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ncells, ndofs, ndofs, &alpha, xe,
+                ncells, phi, ndofs, &beta, xq, ncells);
+
+    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ncells, ndofs, ndofs, &alpha, xq,
+                ncells, phi, ndofs, &beta, ue, ncells);
+    cudaDeviceSynchronize();
     t = MPI_Wtime() - t;
 
+    std::cout << "Number of cells: " << ncells;
     std::cout << "Elapsed time: " << t;
   }
 
