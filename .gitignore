@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+*.json
+
+*build*
+
+# Compiled forms
+forms.c
+forms.h
