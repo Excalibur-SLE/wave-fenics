@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
       send_buffer[i] = local_data[indices[i]];
 
     // Recv displacements and sizes
-    std::vector<std::int32_t> displs_recv_fwd = {???};
+    const std::vector<std::int32_t>& displs_recv_fwd = x.map()->scatter_fwd_receive_offsets();
     std::vector<std::int32_t> sizes_recv_fwd(displs_recv_fwd.size() - 1);
     std::adjacent_difference(displs_recv_fwd.begin(), displs_recv_fwd.end(), sizes_recv_fwd.begin());
 
@@ -100,7 +100,7 @@ int main(int argc, char* argv[]) {
     const std::vector<std::int32_t>& ghost_pos_recv_fwd = x.map()->scatter_fwd_ghost_positions();
     assert(remote_data.size() == ghost_pos_recv_fwd.size());
     for (std::size_t i = 0; i < ghost_pos_recv_fwd.size(); ++i)
-      remote_data[i] = buffer_recv[ghost_pos_recv_fwd[i]];
+      remote_data[i] = recv_buffer[ghost_pos_recv_fwd[i]];
     
     cudaProfilerStop();
   }
