@@ -6,7 +6,7 @@ project(${PROJECT_NAME})
 
 # Set C++17 standard
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
@@ -17,13 +17,14 @@ find_package(Boost 1.70 REQUIRED program_options)
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../../common" ".")
 
 # Executable
-add_executable(${PROJECT_NAME} main.cpp)
+set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../common/cuda)
+add_executable(${PROJECT_NAME} main.cpp ${SOURCE_DIR}/transform.cu)
 
 # Target libraries
 target_link_libraries(${PROJECT_NAME} dolfinx ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} Boost::program_options)
 target_include_directories(${PROJECT_NAME} PUBLIC SYSTEM ${CUDA_INCLUDE_DIRS})
 
 # Custom compilation flags
-target_compile_options(${PROJECT_NAME} PUBLIC -Ofast -Wall)
+target_compile_options(${PROJECT_NAME} PUBLIC -O3)
 
 message(STATUS ${CMAKE_CXX_FLAGS})
