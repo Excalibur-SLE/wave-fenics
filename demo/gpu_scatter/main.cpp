@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) {
     const dolfinx::graph::AdjacencyList<std::int32_t>& shared_indices = x.map()->scatter_fwd_indices();
 
     xtl::span<const double> local_data = x.array();    
-    const std::vector<std::int32_t>& indices = shared_indices->array();
+    const std::vector<std::int32_t>& indices = shared_indices.array();
     std::vector<double> send_buffer(indices.size());
     for (std::size_t i = 0; i < indices.size(); ++i)
       send_buffer[i] = local_data[indices[i]];
@@ -86,15 +86,15 @@ int main(int argc, char* argv[]) {
     std::vector<double> recv_buffer(displs_recv_fwd.back());
 
     // Send displacements and sizes
-    const std::vector<std::int32_t>& displs_send_fwd = shared_indices->offsets();
+    const std::vector<std::int32_t>& displs_send_fwd = shared_indices.offsets();
     std::vector<std::int32_t> sizes_send_fwd(displs_send_fwd.size() - 1);
     std::adjacent_difference(displs_send_fwd.begin(), displs_send_fwd.end(), sizes_send_fwd.begin());
 
     // Start send/receive
     MPI_Neighbor_alltoallv(send_buffer.data(), sizes_send_fwd.data(),
-                           displs_send_fwd.data(), dolfinx::MPI::mpi_type<double>();
+                           displs_send_fwd.data(), dolfinx::MPI::mpi_type<double>(),
                            recv_buffer.data(), sizes_recv_fwd.data(),
-                           displs_recv_fwd.data(), dolfinx::MPI::mpi_type<double>();
+                           displs_recv_fwd.data(), dolfinx::MPI::mpi_type<double>(),
                            x.map()->comm(dolfinx::common::IndexMap::Direction::forward));
 
     // Copy into ghost area ("remote_data")
