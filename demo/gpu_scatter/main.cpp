@@ -4,6 +4,8 @@
 #include <dolfinx/io/XDMFFile.h>
 #include <iostream>
 
+#include <cuda_profiler_api.h>
+
 // Helper functions
 #include <cuda/allocator.hpp>
 #include <cuda/la.hpp>
@@ -41,6 +43,8 @@ int main(int argc, char* argv[]) {
     CUDA::allocator<double> allocator{};
     la::Vector<double, decltype(allocator)> x(idxmap, 1, allocator);
 
+    cudaProfilerStart();
+
     // prefetch data to gpu
     linalg::prefetch(rank, x);
 
@@ -49,6 +53,8 @@ int main(int argc, char* argv[]) {
 
     // Scatter reverse (ghosts to owners -> many to one map)
     x.scatter_rev(dolfinx::common::IndexMap::Mode::add);
+
+    cudaProfilerStop();
   }
 
   common::subsystem::finalize_mpi();
