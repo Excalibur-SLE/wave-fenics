@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "cuda/allocator.hpp"
 #include "cublas_v2.h"
+#include "cuda/allocator.hpp"
 #include <cuda_runtime.h>
 #include <dolfinx/common/MPI.h>
 #include <dolfinx/la/Vector.h>
@@ -27,7 +27,7 @@ int set_device(MPI_Comm comm) {
   int num_devices = 0;
   cudaGetDeviceCount(&num_devices);
 
-  if (num_devices != mpi_size && mpi_size != 1) {
+  if (num_devices < mpi_size) {
     throw std::runtime_error("The number of MPI processes should be less or equal the "
                              "number of available devices ("
                              + std::to_string(num_devices) + ").");
@@ -85,4 +85,4 @@ void output_device_info() {
   std::cout << std::endl;
 }
 
-} // namespace CUDA
+} // namespace utils
