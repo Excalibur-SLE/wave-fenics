@@ -3,6 +3,7 @@
 #include <dolfinx.h>
 #include <dolfinx/io/XDMFFile.h>
 #include <iostream>
+#include <boost/program_options.hpp>
 
 #include <cuda_profiler_api.h>
 
@@ -12,11 +13,31 @@
 #include <cuda/utils.hpp>
 
 using namespace dolfinx;
-
-int degree = 1;
-std::size_t Nx = 32;
+namespace po = boost::program_options;
 
 int main(int argc, char* argv[]) {
+
+  po::options_description desc("Allowed options");
+  desc.add_options()("help,h", "print usage message")(
+                                                      "size", po::value<std::size_t>()->default_value(32))
+    ("degree", po::value<int>()->default_value(1));
+
+  po::variables_map vm;
+  po::store(po::command_line_parser(argc, argv)
+                .options(desc)
+                .allow_unregistered()
+                .run(), vm);
+  po::notify(vm);
+
+  if (vm.count("help"))
+  {
+    std::cout << desc << "\n";
+    return 0;
+  }
+
+  const std::size_t Nx = vm["size"].as<std::size_t>();
+  const int degree = vm["degree"].as<int>();
+
   common::subsystem::init_logging(argc, argv);
   common::subsystem::init_mpi(argc, argv);
   {
@@ -30,9 +51,9 @@ int main(int argc, char* argv[]) {
     auto mesh = std::make_shared<mesh::Mesh>(mesh::create_box(
         mpi_comm, p, n, mesh::CellType::hexahedron, mesh::GhostMode::none));
 
-    // Create a Basix continuous Lagrange element of degree 1
+    // Create a Basix continuous Lagrange element of given degree
     basix::FiniteElement e = basix::element::create_lagrange(
-        mesh::cell_type_to_basix_type(mesh::CellType::hexahedron), 1,
+        mesh::cell_type_to_basix_type(mesh::CellType::hexahedron), degree,
         basix::element::lagrange_variant::equispaced, true);
 
     // Create a scalar function space

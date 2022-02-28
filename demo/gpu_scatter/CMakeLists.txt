@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 find_package(DOLFINX REQUIRED)
 find_package(CUDA 11.0 REQUIRED)
-
+find_package(Boost 1.70 REQUIRED program_options)
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../../common" ".")
 
@@ -20,7 +20,7 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../../common" ".")
 add_executable(${PROJECT_NAME} main.cpp)
 
 # Target libraries
-target_link_libraries(${PROJECT_NAME} dolfinx ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} dolfinx ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} Boost::program_options)
 target_include_directories(${PROJECT_NAME} PUBLIC SYSTEM ${CUDA_INCLUDE_DIRS})
 
 # Custom compilation flags
