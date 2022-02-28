@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
 
   po::options_description desc("Allowed options");
   desc.add_options()("help,h", "print usage message")(
-                                                      "size", po::value<int>()->default_value(32)),
+                                                      "size", po::value<std::size_t>()->default_value(32)),
     "degree", po::value<int>()->default_value(1));
 
   po::variables_map vm;
@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
-  const int Nx = vm["size"].as<int>();
+  const std::size_t Nx = vm["size"].as<std::size_t>();
   const int degree = vm["degree"].as<int>();
 
   common::subsystem::init_logging(argc, argv);
