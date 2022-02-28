@@ -72,9 +72,6 @@ int main(int argc, char* argv[]) {
     // Scatter forward (owner to ghost -> one to many map)
     x.scatter_fwd();
 
-    // Scatter reverse (ghosts to owners -> many to one map)
-    x.scatter_rev(dolfinx::common::IndexMap::Mode::add);
-
     cudaProfilerStop();
   }
 
