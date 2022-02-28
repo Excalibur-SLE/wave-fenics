@@ -67,8 +67,34 @@ int main(int argc, char* argv[]) {
     linalg::prefetch(rank, x);
 
     // Scatter forward (owner to ghost -> one to many map)
-    x.scatter_fwd();
+    const dolfinx::graph::AdjacencyList<std::int32_t>& shared_indices = x.map()->scatter_fwd_indices();
 
+    const std::vector<std::int32_t>& indices = shared_indices->array();
+    std::vector<double> send_buffer(indices.size());
+    for (std::size_t i = 0; i < indices.size(); ++i)
+      send_buffer[i] = local_data[indices[i]];
+
+    MPI_Request request;
+    std::vector<double> recv_buffer(_displs_recv_fwd.back());
+
+    // Send displacement
+    const std::vector<int32_t>& displs_send_fwd = shared_indices->offsets();
+    std::vector<std::int32_t> sizes_send_fwd(displs_send_fwd.size() - 1);
+    std::adjacent_difference(displs_send_fwd.begin(), displs_send_fwd.end(), sizes_send_fwd.begin());
+
+    // Start send/receive
+    MPI_Neighbor_alltoallv(send_buffer.data(), _sizes_send_fwd.data(),
+                           displs_send_fwd.data(), dolfinx::MPI::mpi_type<double>();
+                           recv_buffer.data(), _sizes_recv_fwd.data(),
+                           _displs_recv_fwd.data(), dolfinx::MPI::mpi_type<double>();
+                           x.map()->comm(dolfinx::common::IndexMap::Direction::forward));
+
+    // Copy into ghost area ("remote_data")
+    const std::vector<std::int32_t>& ghost_pos_recv_fwd = x.map()->scatter_fwd_ghost_positions();
+    assert(remote_data.size() == ghost_pos_recv_fwd.size());
+    for (std::size_t i = 0; i < ghost_pos_recv_fwd.size(); ++i)
+      remote_data[i] = buffer_recv[ghost_pos_recv_fwd[i]];
+    
     cudaProfilerStop();
   }
 
