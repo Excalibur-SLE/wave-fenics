@@ -57,6 +57,11 @@ int main(int argc, char* argv[]) {
   std::cout << "\nNumber of dofs: " << ndofs;
   std::cout << "\n#GFLOPs: " << (4 * ncells * ndofs * ndofs) / t / 1e9;
 
+  cudaFree(xe);
+  cudaFree(xq);
+  cudaFree(ue);
+  cudaFree(phi);
+
   MPI_Finalize();
 
   return 0;

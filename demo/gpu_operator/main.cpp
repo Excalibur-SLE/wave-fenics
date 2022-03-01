@@ -11,6 +11,7 @@
 // Helper functions
 #include <cuda/allocator.hpp>
 #include <cuda/la.hpp>
+#include <cuda/transform.hpp>
 #include <cuda/utils.hpp>
 
 using namespace dolfinx;
@@ -72,26 +73,22 @@ int main(int argc, char* argv[]) {
     cublasHandle_t handle;
     cublasCreate(&handle);
 
-    double* xe;
-    unsigned int size_A = ncells * ndofs;
-    unsigned int mem_size_A = sizeof(double) * size_A;
-    assert_cublas(cudaMalloc((void**)&xe, mem_size_A));
-    cudaMemset(&xe, 0.5, ncells * ndofs * sizeof(double));
+    std::int32_t Ne = ncells * ndofs;
+    double *xe, *xq, *ue, *phi, *detJ;
 
-    double* xq;
-    unsigned int size_xq = ncells * ndofs;
-    unsigned int mem_size_xq = sizeof(double) * size_xq;
-    assert_cublas(cudaMalloc((void**)&xq, mem_size_xq));
-    cudaMemset(&xq, 0, ncells * ndofs * sizeof(double));
+    assert_cublas(cudaMalloc((void**)&xe, Ne * sizeof(double)));
+    cudaMemset(&xe, 0.5, Ne * sizeof(double));
 
-    double* ue;
-    unsigned int size_ue = ncells * ndofs;
-    unsigned int mem_size_ue = sizeof(double) * size_ue;
-    assert_cublas(cudaMalloc((void**)&ue, mem_size_ue));
-    cudaMemset(&ue, 0, ncells * ndofs * sizeof(double));
+    assert_cublas(cudaMalloc((void**)&xq, Ne * sizeof(double)));
+    cudaMemset(&xq, 0., Ne * sizeof(double));
 
-    double* phi;
-    unsigned int size_phi = ncells * ndofs;
+    assert_cublas(cudaMalloc((void**)&ue, Ne * sizeof(double)));
+    cudaMemset(&ue, 0., Ne * sizeof(double));
+
+    assert_cublas(cudaMalloc((void**)&detJ, Ne * sizeof(double)));
+    cudaMemset(&detJ, 0.5, Ne * sizeof(double));
+
+    unsigned int size_phi = ndofs * ndofs;
     unsigned int mem_size_phi = sizeof(double) * size_phi;
     assert_cublas(cudaMalloc((void**)&phi, mem_size_phi));
 
@@ -101,14 +98,23 @@ int main(int argc, char* argv[]) {
     double t = MPI_Wtime();
     cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ncells, ndofs, ndofs, &alpha, xe,
                 ncells, phi, ndofs, &beta, xq, ncells);
-
+    transform1(Ne, xq, detJ, xq, 512);
     cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ncells, ndofs, ndofs, &alpha, xq,
                 ncells, phi, ndofs, &beta, ue, ncells);
     cudaDeviceSynchronize();
     t = MPI_Wtime() - t;
 
     std::cout << "Number of cells: " << ncells;
-    std::cout << "Elapsed time: " << t;
+    std::cout << "\nNumber of dofs: " << ndofs;
+    std::cout << "\n#GFLOPs: " << (4 * ncells * ndofs * ndofs) / t / 1e9;
+    std::cout << "\nDOF/s: " << V->dofmap()->index_map->size_local() / t;
+    std::cout << std::endl;
+
+    cudaFree(xe);
+    cudaFree(xq);
+    cudaFree(ue);
+    cudaFree(detJ);
+    cudaFree(phi);
   }
 
   common::subsystem::finalize_mpi();
