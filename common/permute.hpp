@@ -1,8 +1,7 @@
 #pragma once
 
-#include <vector>
-
 #include <basix/finite-element.h>
+#include <vector>
 
 /// Reorder dofmap into tensor product order
 /// @param[in] in_arr Input dofmap
