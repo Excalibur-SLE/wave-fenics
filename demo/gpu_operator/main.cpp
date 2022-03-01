@@ -109,6 +109,12 @@ int main(int argc, char* argv[]) {
     std::cout << "\n#GFLOPs: " << (4 * ncells * ndofs * ndofs) / t / 1e9;
     std::cout << "\nDOF/s: " << V->dofmap()->index_map->size_local() / t;
     std::cout << std::endl;
+
+    cudaFree(xe);
+    cudaFree(xq);
+    cudaFree(ue);
+    cudaFree(detJ);
+    cudaFree(phi);
   }
 
   common::subsystem::finalize_mpi();
