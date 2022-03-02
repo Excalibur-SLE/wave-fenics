@@ -67,4 +67,5 @@ template void gather<double>(std::int32_t, const std::int32_t*, const double*, d
 template void gather<float>(std::int32_t, const std::int32_t*, const float*, float*, int);
 template void scatter<double>(std::int32_t, const std::int32_t*, const double*, double*,
                               int);
-template void scatter<float>(std::int32_t, const std::int32_t*, const float*, float*, int);
+template void scatter<float>(std::int32_t, const std::int32_t*, const float*, float*,
+                             int);
