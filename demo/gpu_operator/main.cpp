@@ -51,6 +51,10 @@ int main(int argc, char* argv[]) {
     MPI_Comm mpi_comm{MPI_COMM_WORLD};
     int rank = utils::set_device(mpi_comm);
 
+    // Create cublas handle
+    cublasHandle_t handle;
+    cublasCreate(&handle);
+
     // Read mesh and mesh tags
     std::array<std::array<double, 3>, 2> p = {{{0.0, 0.0, 0.0}, {1.0, 1.0, 1.0}}};
     std::array<std::size_t, 3> n = {Nx, Nx, Nx};
@@ -70,13 +74,6 @@ int main(int argc, char* argv[]) {
     int ncells = mesh->topology().index_map(3)->size_local();
     int ndofs = e.dim();
 
-    // xe [ncells times ndofs];
-    // xq [ncells times ndofs];
-
-    // Create cublas handle
-    cublasHandle_t handle;
-    cublasCreate(&handle);
-
     fem::Function<double> u(V);
     // Interpolate sin(2 \pi x[0]) in the scalar Lagrange finite element space
     constexpr double PI = xt::numeric_constants<double>::PI;
@@ -87,7 +84,9 @@ int main(int argc, char* argv[]) {
     auto uarray = u.x()->array();
     std::copy(uarray.begin(), uarray.end(), x.mutable_array().begin());
 
-    // Tabulate quadrature points and weights
+    // =====================================
+    // Tabulate basis functions at quadrature points
+    // 1 - Tabulate quadrature points and weights
     int q = 2 * degree + 2; // Quadrature degree
     auto cell = basix::cell::type::hexahedron;
     auto quad = basix::quadrature::type::gauss_jacobi;
@@ -97,6 +96,7 @@ int main(int argc, char* argv[]) {
     std::int32_t Ne = ncells * ndofs;
     std::int32_t Nq = ncells * nquads;
 
+    // 2 - Tabulate basis functions
     xt::xtensor<double, 4> basis = e.tabulate(0, points);
     xt::xtensor<double, 2> _phi = xt::view(basis, 0, xt::all(), xt::all(), 0);
     cuda::array<double> phi(ndofs * nquads);
@@ -105,25 +105,33 @@ int main(int argc, char* argv[]) {
     cuda::array<double> phiT(ndofs * nquads);
     phiT.set(_phi);
 
+    // =====================================
+    // Get dofmap for the gather/scatter
     // Copy dofmap data to device
     cuda::array<std::int32_t> dofmap(Ne);
     const std::vector<std::int32_t>& dof_array = V->dofmap()->list().array();
     dofmap.set(dof_array);
 
+    // =====================================
     // Compute determinant of Jacobian
+    // TODO: precompute jacobian function in perecomputation.hpp
     cuda::array<double> detJ(Nq);
 
-    // Allocate working arrays on device
+    // Allocate memory for working arrays on device
     cuda::array<double> ue(Ne);
     cuda::array<double> uq(Nq);
     cuda::array<double> xe(Ne);
 
+    // =====================================
+    // Apply gather operator Ue <- u[dofmap]
     // From global dof vector to element based dof vector
     gather(ue.size(), dofmap.data(), x.array().data(), ue.data(), 512);
 
     double alpha = 1;
     double beta = 0;
 
+    // =====================================
+    // Apply operator B^T D B to Ue
     double t = MPI_Wtime();
     cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, nquads, ncells, ndofs, &alpha,
                 phiT.data(), nquads, ue.data(), ndofs, &beta, uq.data(), nquads);
@@ -132,6 +140,11 @@ int main(int argc, char* argv[]) {
                 phi.data(), ndofs, uq.data(), nquads, &beta, xe.data(), ndofs);
     cudaDeviceSynchronize();
     t = MPI_Wtime() - t;
+
+    // =====================================
+    // Apply scatter operator x[dofmap] <- Xe
+    // From element based dof vector to global dof vector
+    gather(ue.size(), dofmap.data(), x.array().data(), ue.data(), 512);
 
     std::cout << "Number of cells: " << ncells;
     std::cout << "\nNumber of dofs: " << ndofs;
