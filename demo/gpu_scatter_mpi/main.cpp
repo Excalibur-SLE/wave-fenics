@@ -9,6 +9,7 @@
 
 // Helper functions
 #include <cuda/allocator.hpp>
+#include <cuda/array.hpp>
 #include <cuda/la.hpp>
 #include <cuda/utils.hpp>
 
@@ -69,65 +70,38 @@ int main(int argc, char* argv[])
     CUDA::allocator<double> allocator{};
     la::Vector<double, decltype(allocator)> x(idxmap, 1, allocator);
 
-    cudaProfilerStart();
-
-    // prefetch data to gpu
-    linalg::prefetch(rank, x);
-
-    // Scatter forward (owner to ghost -> one to many map)
-    const dolfinx::graph::AdjacencyList<std::int32_t>& shared_indices
-        = x.map()->scatter_fwd_indices();
-
-    xtl::span<const double> local_data = x.array();
-    const std::vector<std::int32_t>& indices = shared_indices.array();
-
-    double* d_send_buffer = nullptr;
-    double* d_recv_buffer = nullptr;
-    std::int32_t* d_indices = nullptr;
-    cudaMalloc((void**)&d_send_buffer, indices.size() * sizeof(double));
-    cudaMalloc((void**)&d_indices, indices.size() * sizeof(std::int32_t));
-    cudaMemcpy(d_indices, indices.data(), indices.size() * sizeof(std::int32_t),
-               cudaMemcpyHostToDevice);
-    gather(indices.size(), d_indices, local_data.data(), d_send_buffer);
-
     // Recv displacements and sizes
     const std::vector<std::int32_t>& displs_recv_fwd = x.map()->scatter_fwd_receive_offsets();
     std::vector<std::int32_t> sizes_recv_fwd(displs_recv_fwd.size());
     std::adjacent_difference(displs_recv_fwd.begin(), displs_recv_fwd.end(),
                              sizes_recv_fwd.begin());
-    // std::vector<double> recv_buffer(displs_recv_fwd.back());
-    cudaMalloc((void**)&d_recv_buffer, displs_recv_fwd.back() * sizeof(double));
+    cuda::array<std::int32_t> d_sizes_recv_fwd(sizes_recv_fwd.size());
+    cuda::array<std::int32_t> d_displs_recv_fwd(displs_recv_fwd.size());
+    d_sizes_recv_fwd.set(sizes_recv_fwd);
+    d_displs_recv_fwd.set(displs_recv_fwd);
 
     // Send displacements and sizes
     const std::vector<std::int32_t>& displs_send_fwd = shared_indices.offsets();
     std::vector<std::int32_t> sizes_send_fwd(displs_send_fwd.size());
     std::adjacent_difference(displs_send_fwd.begin(), displs_send_fwd.end(),
                              sizes_send_fwd.begin());
+    cuda::array<std::int32_t> d_sizes_send_fwd(sizes_send_fwd.size());
+    cuda::array<std::int32_t> d_displs_send_fwd(displs_send_fwd.size());
+    d_sizes_send_fwd.set(sizes_send_fwd);
+    d_displs_send_fwd.set(displs_send_fwd);
 
-    std::int32_t* d_sizes_send_fwd = nullptr;
-    std::int32_t* d_sizes_recv_fwd = nullptr;
-    std::int32_t* d_displs_send_fwd = nullptr;
-    std::int32_t* d_displs_recv_fwd = nullptr;
-    cudaMalloc((void**)&d_sizes_send_fwd,
-               sizes_send_fwd.size() * sizeof(std::int32_t));
-    cudaMalloc((void**)&d_sizes_recv_fwd,
-               sizes_recv_fwd.size() * sizeof(std::int32_t));
-    cudaMalloc((void**)&d_displs_send_fwd,
-               displs_send_fwd.size() * sizeof(std::int32_t));
-    cudaMalloc((void**)&d_displs_recv_fwd,
-               displs_recv_fwd.size() * sizeof(std::int32_t));
-    cudaMemcpy(d_sizes_send_fwd, sizes_send_fwd.data(),
-               sizes_send_fwd.size() * sizeof(std::int32_t),
-               cudaMemcpyHostToDevice);
-    cudaMemcpy(d_sizes_recv_fwd, sizes_recv_fwd.data(),
-               sizes_recv_fwd.size() * sizeof(std::int32_t),
-               cudaMemcpyHostToDevice);
-    cudaMemcpy(d_displs_send_fwd, displs_send_fwd.data(),
-               displs_send_fwd.size() * sizeof(std::int32_t),
-               cudaMemcpyHostToDevice);
-    cudaMemcpy(d_displs_recv_fwd, displs_recv_fwd.data(),
-               displs_recv_fwd.size() * sizeof(std::int32_t),
-               cudaMemcpyHostToDevice);
+    const dolfinx::graph::AdjacencyList<std::int32_t>& shared_indices
+        = x.map()->scatter_fwd_indices();
+    const std::vector<std::int32_t>& indices = shared_indices.array();
+    cuda::array<std::int32_t> d_indices(indices.size());
+    d_indices.set(indices);
+    const std::vector<std::int32_t>& ghost_pos_recv_fwd
+        = x.map()->scatter_fwd_ghost_positions();
+    cuda::array<std::int32_t> d_ghost_pos_recv_fwd(ghost_pos_recv_fwd.size());
+    d_ghost_pos_recv_fwd.set(ghost_pos_recv_fwd);
+
+    cuda::array<double> d_send_buffer(indices.size());
+    cuda::array<double> d_recv_buffer(displs_recv_fwd.back());
 
     // Find my neighbors
     MPI_Comm comm
@@ -141,6 +115,16 @@ int main(int argc, char* argv[])
     MPI_Dist_graph_neighbors(comm, num_recv_neighbors, recv_neighbors.data(),
                              nullptr, num_send_neighbors, send_neighbors.data(),
                              nullptr);
+
+    // Prefetch data to gpu
+    linalg::prefetch(rank, x);
+
+    // Start profiling
+    cudaProfilerStart();
+
+    // Scatter forward (owner to ghost -> one to many map)
+    xtl::span<const double> local_data = x.array();
+    gather(indices.size(), d_indices, local_data.data(), d_send_buffer);
 
     // Start send/receive
     MPI_Request* req = new MPI_Request[num_recv_neighbors];
@@ -161,26 +145,11 @@ int main(int argc, char* argv[])
     xtl::span<double> remote_data(x.mutable_array().data()
                                       + x.map()->size_local(),
                                   x.map()->num_ghosts());
-    const std::vector<std::int32_t>& ghost_pos_recv_fwd
-        = x.map()->scatter_fwd_ghost_positions();
-    std::int32_t* d_ghost_pos_recv_fwd = nullptr;
-    cudaMalloc((void**)&d_ghost_pos_recv_fwd,
-               ghost_pos_recv_fwd.size() * sizeof(std::int32_t));
-    cudaMemcpy(d_ghost_pos_recv_fwd, ghost_pos_recv_fwd.data(),
-               ghost_pos_recv_fwd.size() * sizeof(std::int32_t),
-               cudaMemcpyHostToDevice);
     gather(ghost_pos_recv_fwd.size(), d_ghost_pos_recv_fwd, d_recv_buffer,
            remote_data.data());
 
+    // End profiling
     cudaProfilerStop();
-    cudaFree(d_send_buffer);
-    cudaFree(d_recv_buffer);
-    cudaFree(d_indices);
-    cudaFree(d_sizes_send_fwd);
-    cudaFree(d_sizes_recv_fwd);
-    cudaFree(d_displs_send_fwd);
-    cudaFree(d_displs_recv_fwd);
-    cudaFree(d_sizes_send_fwd);
   }
 
   common::subsystem::finalize_mpi();
