@@ -67,32 +67,37 @@ int main(int argc, char* argv[]) {
 
     // prefetch data to gpu
     linalg::prefetch(rank, x);
-    
-    // Scatter forward (owner to ghost -> one to many map)
-    const dolfinx::graph::AdjacencyList<std::int32_t>& shared_indices = x.map()->scatter_fwd_indices();
 
-    xtl::span<const double> local_data = x.array();    
+    // Scatter forward (owner to ghost -> one to many map)
+    const dolfinx::graph::AdjacencyList<std::int32_t>& shared_indices
+        = x.map()->scatter_fwd_indices();
+
+    xtl::span<const double> local_data = x.array();
     const std::vector<std::int32_t>& indices = shared_indices.array();
 
-    double *d_send_buffer = nullptr;
-    std::int32_t *d_indices = nullptr;
+    double* d_send_buffer = nullptr;
+    std::int32_t* d_indices = nullptr;
     cudaMalloc((void**)&d_send_buffer, indices.size() * sizeof(double));
-    cudaMalloc((void**)&d_indices, indices.size() * sizeof(std::int32_t));    
-    cudaMemcpy(d_indices, indices.data(), indices.size() * sizeof(std::int32_t), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&d_indices, indices.size() * sizeof(std::int32_t));
+    cudaMemcpy(d_indices, indices.data(), indices.size() * sizeof(std::int32_t),
+               cudaMemcpyHostToDevice);
 
     // FIXME: make sure data is on-device
     gather(indices.size(), d_indices, local_data.data(), d_send_buffer);
-  
+
     // Recv displacements and sizes
-    const std::vector<std::int32_t>& displs_recv_fwd = x.map()->scatter_fwd_receive_offsets();
+    const std::vector<std::int32_t>& displs_recv_fwd
+        = x.map()->scatter_fwd_receive_offsets();
     std::vector<std::int32_t> sizes_recv_fwd(displs_recv_fwd.size());
-    std::adjacent_difference(displs_recv_fwd.begin(), displs_recv_fwd.end(), sizes_recv_fwd.begin());
+    std::adjacent_difference(displs_recv_fwd.begin(), displs_recv_fwd.end(),
+                             sizes_recv_fwd.begin());
     std::vector<double> recv_buffer(displs_recv_fwd.back());
 
     // Send displacements and sizes
     const std::vector<std::int32_t>& displs_send_fwd = shared_indices.offsets();
     std::vector<std::int32_t> sizes_send_fwd(displs_send_fwd.size());
-    std::adjacent_difference(displs_send_fwd.begin(), displs_send_fwd.end(), sizes_send_fwd.begin());
+    std::adjacent_difference(displs_send_fwd.begin(), displs_send_fwd.end(),
+                             sizes_send_fwd.begin());
 
     // Start send/receive
     MPI_Neighbor_alltoallv(d_send_buffer, sizes_send_fwd.data() + 1,
@@ -102,15 +107,17 @@ int main(int argc, char* argv[]) {
                            x.map()->comm(dolfinx::common::IndexMap::Direction::forward));
 
     // Copy into ghost area ("remote_data")
-    xtl::span<double> remote_data(x.mutable_array().data() + x.map()->size_local(), x.map()->num_ghosts());
-    const std::vector<std::int32_t>& ghost_pos_recv_fwd = x.map()->scatter_fwd_ghost_positions();
+    xtl::span<double> remote_data(x.mutable_array().data() + x.map()->size_local(),
+                                  x.map()->num_ghosts());
+    const std::vector<std::int32_t>& ghost_pos_recv_fwd
+        = x.map()->scatter_fwd_ghost_positions();
     assert(remote_data.size() == ghost_pos_recv_fwd.size());
     for (std::size_t i = 0; i < ghost_pos_recv_fwd.size(); ++i)
       remote_data[i] = recv_buffer[ghost_pos_recv_fwd[i]];
-    
+
     cudaProfilerStop();
     cudaFree(d_send_buffer);
-    cudaFree(d_indices);    
+    cudaFree(d_indices);
   }
 
   common::subsystem::finalize_mpi();
