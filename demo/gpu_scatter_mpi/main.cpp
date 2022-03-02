@@ -14,8 +14,6 @@
 #include <cuda/scatter.hpp>
 #include <cuda/utils.hpp>
 
-#include <cuda_kernels.hpp>
-
 using namespace dolfinx;
 namespace po = boost::program_options;
 
@@ -156,14 +154,6 @@ int main(int argc, char* argv[])
 
     // End profiling
     cudaProfilerStop();
-    cudaFree(d_send_buffer);
-    cudaFree(d_recv_buffer);
-    cudaFree(d_indices);
-    cudaFree(d_sizes_send_fwd);
-    cudaFree(d_sizes_recv_fwd);
-    cudaFree(d_displs_send_fwd);
-    cudaFree(d_displs_recv_fwd);
-    cudaFree(d_sizes_send_fwd);
   }
 
   common::subsystem::finalize_mpi();
