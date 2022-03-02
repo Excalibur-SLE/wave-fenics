@@ -132,27 +132,30 @@ int main(int argc, char* argv[])
     // Find my neighbors
     MPI_Comm comm
         = x.map()->comm(dolfinx::common::IndexMap::Direction::forward);
-    int neighborhood_rank, num_neighbors;
-    MPI_Comm_rank(comm, &neighborhood_rank);
-    MPI_Graph_neighbors_count(comm, neighborhood_rank, &num_neighbors);
-    std::vector<int> neighbors(num_neighbors);
-    MPI_Graph_neighbors(comm, neighborhood_rank, num_neighbors,
-                        neighbors.data());
+    int num_recv_neighbors, num_send_neighbors;
+    int weighted;
+    MPI_Dist_graph_neighbors_count(comm, &num_recv_neighbors,
+                                   &num_send_neighbors, &weighted);
+    std::vector<int> recv_neighbors(num_recv_neighbors);
+    std::vector<int> send_neighbors(num_send_neighbors);
+    MPI_Dist_graph_neighbors(comm, num_recv_neighbors, recv_neighbors.data(),
+                             nullptr, num_send_neighbors, send_neighbors.data(),
+                             nullptr);
 
     // Start send/receive
-    MPI_Request* req = new MPI_Request[num_neighbors];
-    for (int i = 0; i < num_neighbors; ++i) {
+    MPI_Request* req = new MPI_Request[num_recv_neighbors];
+    for (int i = 0; i < num_recv_neighbors; ++i) {
       MPI_Irecv(d_recv_buffer + d_displs_recv_fwd[i], d_sizes_recv_fwd[i + 1],
-                dolfinx::MPI::mpi_type<double>(), neighbors[i], 0, comm,
+                dolfinx::MPI::mpi_type<double>(), recv_neighbors[i], 0, comm,
                 &(req[i]));
     }
 
-    for (int i = 0; i < num_neighbors; ++i) {
+    for (int i = 0; i < num_send_neighbors; ++i) {
       MPI_Send(d_send_buffer + d_displs_send_fwd[i], d_sizes_send_fwd[i + 1],
-               dolfinx::MPI::mpi_type<double>(), neighbors[i], 0, comm);
+               dolfinx::MPI::mpi_type<double>(), send_neighbors[i], 0, comm);
     }
 
-    MPI_Waitall(num_neighbors, req, MPI_STATUSES_IGNORE);
+    MPI_Waitall(num_recv_neighbors, req, MPI_STATUSES_IGNORE);
 
     // Copy into ghost area ("remote_data")
     xtl::span<double> remote_data(x.mutable_array().data()
@@ -160,9 +163,6 @@ int main(int argc, char* argv[])
                                   x.map()->num_ghosts());
     const std::vector<std::int32_t>& ghost_pos_recv_fwd
         = x.map()->scatter_fwd_ghost_positions();
-    // assert(remote_data.size() == ghost_pos_recv_fwd.size());
-    // for (std::size_t i = 0; i < ghost_pos_recv_fwd.size(); ++i)
-    //   remote_data[i] = recv_buffer[ghost_pos_recv_fwd[i]];
     std::int32_t* d_ghost_pos_recv_fwd = nullptr;
     cudaMalloc((void**)&d_ghost_pos_recv_fwd,
                ghost_pos_recv_fwd.size() * sizeof(std::int32_t));
