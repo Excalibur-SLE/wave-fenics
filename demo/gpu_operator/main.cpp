@@ -101,6 +101,9 @@ int main(int argc, char* argv[]) {
     xt::xtensor<double, 2> _phi = xt::view(basis, 0, xt::all(), xt::all(), 0);
     cuda::array<double> phi(ndofs * nquads);
     phi.set(_phi);
+    _phi = xt::transpose(_phi);
+    cuda::array<double> phiT(ndofs * nquads);
+    phiT.set(_phi);
 
     // Copy dofmap data to device
     cuda::array<std::int32_t> dofmap(Ne);
@@ -122,18 +125,18 @@ int main(int argc, char* argv[]) {
     double beta = 0;
 
     double t = MPI_Wtime();
-    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, ncells, nquads, ndofs, &alpha,
-                ue.data(), ncells, phi.data(), nquads, &beta, uq.data(), ncells);
+    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, nquads, ncells, ndofs, &alpha,
+                phiT.data(), nquads, ue.data(), ndofs, &beta, uq.data(), nquads);
     transform1(Ne, uq.data(), detJ.data(), uq.data(), 512);
-    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ncells, ndofs, nquads, &alpha,
-                uq.data(), ncells, phi.data(), nquads, &beta, xe.data(), ncells);
+    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ndofs, ncells, nquads, &alpha,
+                phi.data(), ndofs, uq.data(), nquads, &beta, xe.data(), ndofs);
     cudaDeviceSynchronize();
     t = MPI_Wtime() - t;
 
     std::cout << "Number of cells: " << ncells;
     std::cout << "\nNumber of dofs: " << ndofs;
     std::cout << "\nNumber of quads: " << nquads;
-    std::cout << "\n#GFLOPs: " << (4 * ncells * nquads * ndofs) / t;
+    std::cout << "\n#FLOPs: " << ((4 * ncells * nquads * ndofs) + Ne) / t;
     std::cout << "\nDOF/s: " << V->dofmap()->index_map->size_local() / t;
     std::cout << std::endl;
   }
