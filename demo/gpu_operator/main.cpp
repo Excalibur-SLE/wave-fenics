@@ -134,16 +134,20 @@ int main(int argc, char* argv[]) {
     // =====================================
     // Apply operator B^T D B to Ue
     double t = MPI_Wtime();
+    // Uq^ = B Ue^T
     cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, nquads, ncells, ndofs, &alpha,
                 phiT.data(), nquads, ue.data(), ndofs, &beta, uq.data(), nquads);
+    // Uq = detJ .* Uq
     transform1(Ne, uq.data(), detJ.data(), uq.data(), 512);
+    // Uq = detJ .* Uq
     cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ndofs, ncells, nquads, &alpha,
                 phi.data(), ndofs, uq.data(), nquads, &beta, xe.data(), ndofs);
     cudaDeviceSynchronize();
     t = MPI_Wtime() - t;
 
     // =====================================
-    // Apply scatter operator x[dofmap] <- Xe
+    // Apply scatter operator
+    // x[dofmap] <- Xe
     // From element based dof vector to global dof vector
     // scatter(ue.size(), dofmap.data(), x.array().data(), ue.data(), 512);
 
