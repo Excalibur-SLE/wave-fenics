@@ -123,7 +123,8 @@ int main(int argc, char* argv[]) {
     cuda::array<double> xe(Ne);
 
     // =====================================
-    // Apply gather operator Ue <- u[dofmap]
+    // Apply gather operator Ue = G u
+    // Ue <- u[dofmap]
     // From global dof vector to element based dof vector
     gather(ue.size(), dofmap.data(), x.array().data(), ue.data(), 512);
 
@@ -144,7 +145,7 @@ int main(int argc, char* argv[]) {
     // =====================================
     // Apply scatter operator x[dofmap] <- Xe
     // From element based dof vector to global dof vector
-    gather(ue.size(), dofmap.data(), x.array().data(), ue.data(), 512);
+    // scatter(ue.size(), dofmap.data(), x.array().data(), ue.data(), 512);
 
     std::cout << "Number of cells: " << ncells;
     std::cout << "\nNumber of dofs: " << ndofs;
