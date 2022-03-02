@@ -149,7 +149,7 @@ int main(int argc, char* argv[])
            d_send_buffer.data(), block_size);
 
     // Step 2: begin scatter
-    std::vector<MPI_Request> req = (num_recv_neighbors);
+    std::vector<MPI_Request> req(num_recv_neighbors);
     for (int i = 0; i < num_recv_neighbors; ++i) {
       MPI_Irecv(d_recv_buffer.data() + displs_recv_fwd[i],
                 sizes_recv_fwd[i + 1], data_type, recv_neighbors[i], 0, comm,
@@ -163,11 +163,11 @@ int main(int argc, char* argv[])
 
     MPI_Waitall(num_recv_neighbors, req.data(), MPI_STATUSES_IGNORE);
 
-    // Step3: copy into ghost area
+    // Step 3: copy into ghost area
     xtl::span<double> x_remote(x.mutable_array().data() + x.map()->size_local(),
                                x.map()->num_ghosts());
     gather(ghost_pos_recv_fwd.size(), d_ghost_pos_recv_fwd.data(),
-           d_recv_buffer.data(), remote_data.data(), block_size);
+           d_recv_buffer.data(), x_remote.data(), block_size);
 
     // --------------------------- Phase 2 ---------------------------
     // Scatter reverse (ghosts to owners -> many to one map)
@@ -177,10 +177,10 @@ int main(int argc, char* argv[])
 
     // Step 1: pack send buffer
     xtl::span<const double> x_remote_const(
-        x.array().data() + x.map->size_local(), x.map()->num_ghosts());
+        x.array().data() + x.map()->size_local(), x.map()->num_ghosts());
     // FIXME without atomics
-    scatter(d_indices.size(), d_ghost_pos_recv_fwd, x_remote_const,
-            d_recv_buffer, block_size);
+    scatter(d_indices.size(), d_ghost_pos_recv_fwd.data(),
+            x_remote_const.data(), d_recv_buffer.data(), block_size);
 
     // Step 2: begin scatter
     req.clear();
@@ -199,9 +199,9 @@ int main(int argc, char* argv[])
     MPI_Waitall(num_rev_recv_neighbors, req.data(), MPI_STATUSES_IGNORE);
 
     // Step 3: copy/accumulate into owned part of the vector
-    xtl::span<double> x_local(x.mutable_array().data());
-    scatter(shared_indices.size(), d_indices, d_send_buffer, xlocal.data(),
-            block_size);
+    xtl::span<double> x_local(x.mutable_array());
+    scatter(indices.size(), d_indices.data(), d_send_buffer.data(),
+            x_local.data(), block_size);
 
     // End profiling
     cudaProfilerStop();
