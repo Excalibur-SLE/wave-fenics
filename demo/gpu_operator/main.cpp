@@ -139,7 +139,7 @@ int main(int argc, char* argv[]) {
                 phiT.data(), nquads, ue.data(), ndofs, &beta, uq.data(), nquads);
     // Uq = detJ .* Uq
     transform1(Ne, uq.data(), detJ.data(), uq.data(), 512);
-    // Uq = detJ .* Uq
+    // Xe^T = B^T Uq^T
     cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ndofs, ncells, nquads, &alpha,
                 phi.data(), ndofs, uq.data(), nquads, &beta, xe.data(), ndofs);
     cudaDeviceSynchronize();
