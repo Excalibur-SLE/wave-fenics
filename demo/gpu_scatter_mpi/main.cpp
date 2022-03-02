@@ -11,9 +11,8 @@
 #include <cuda/allocator.hpp>
 #include <cuda/array.hpp>
 #include <cuda/la.hpp>
+#include <cuda/scatter.hpp>
 #include <cuda/utils.hpp>
-
-#include <cuda_kernels.hpp>
 
 using namespace dolfinx;
 namespace po = boost::program_options;
@@ -71,7 +70,8 @@ int main(int argc, char* argv[])
     la::Vector<double, decltype(allocator)> x(idxmap, 1, allocator);
 
     // Recv displacements and sizes
-    const std::vector<std::int32_t>& displs_recv_fwd = x.map()->scatter_fwd_receive_offsets();
+    const std::vector<std::int32_t>& displs_recv_fwd
+        = x.map()->scatter_fwd_receive_offsets();
     std::vector<std::int32_t> sizes_recv_fwd(displs_recv_fwd.size());
     std::adjacent_difference(displs_recv_fwd.begin(), displs_recv_fwd.end(),
                              sizes_recv_fwd.begin());
@@ -81,6 +81,8 @@ int main(int argc, char* argv[])
     d_displs_recv_fwd.set(displs_recv_fwd);
 
     // Send displacements and sizes
+    const dolfinx::graph::AdjacencyList<std::int32_t>& shared_indices
+        = x.map()->scatter_fwd_indices();
     const std::vector<std::int32_t>& displs_send_fwd = shared_indices.offsets();
     std::vector<std::int32_t> sizes_send_fwd(displs_send_fwd.size());
     std::adjacent_difference(displs_send_fwd.begin(), displs_send_fwd.end(),
@@ -90,8 +92,6 @@ int main(int argc, char* argv[])
     d_sizes_send_fwd.set(sizes_send_fwd);
     d_displs_send_fwd.set(displs_send_fwd);
 
-    const dolfinx::graph::AdjacencyList<std::int32_t>& shared_indices
-        = x.map()->scatter_fwd_indices();
     const std::vector<std::int32_t>& indices = shared_indices.array();
     cuda::array<std::int32_t> d_indices(indices.size());
     d_indices.set(indices);
@@ -119,23 +119,27 @@ int main(int argc, char* argv[])
     // Prefetch data to gpu
     linalg::prefetch(rank, x);
 
+    // Set thread block size for CUDA kernels
+    const int block_size = 512;
+
     // Start profiling
     cudaProfilerStart();
 
     // Scatter forward (owner to ghost -> one to many map)
     xtl::span<const double> local_data = x.array();
-    gather(indices.size(), d_indices, local_data.data(), d_send_buffer);
+    gather(indices.size(), d_indices.data(), local_data.data(),
+           d_send_buffer.data(), block_size);
 
     // Start send/receive
     MPI_Request* req = new MPI_Request[num_recv_neighbors];
     for (int i = 0; i < num_recv_neighbors; ++i) {
-      MPI_Irecv(d_recv_buffer + d_displs_recv_fwd[i], d_sizes_recv_fwd[i + 1],
-                dolfinx::MPI::mpi_type<double>(), recv_neighbors[i], 0, comm,
-                &(req[i]));
+      MPI_Irecv(d_recv_buffer.data() + displs_recv_fwd[i],
+                sizes_recv_fwd[i + 1], dolfinx::MPI::mpi_type<double>(),
+                recv_neighbors[i], 0, comm, &(req[i]));
     }
 
     for (int i = 0; i < num_send_neighbors; ++i) {
-      MPI_Send(d_send_buffer + d_displs_send_fwd[i], d_sizes_send_fwd[i + 1],
+      MPI_Send(d_send_buffer.data() + displs_send_fwd[i], sizes_send_fwd[i + 1],
                dolfinx::MPI::mpi_type<double>(), send_neighbors[i], 0, comm);
     }
 
@@ -145,8 +149,8 @@ int main(int argc, char* argv[])
     xtl::span<double> remote_data(x.mutable_array().data()
                                       + x.map()->size_local(),
                                   x.map()->num_ghosts());
-    gather(ghost_pos_recv_fwd.size(), d_ghost_pos_recv_fwd, d_recv_buffer,
-           remote_data.data());
+    gather(ghost_pos_recv_fwd.size(), d_ghost_pos_recv_fwd.data(),
+           d_recv_buffer.data(), remote_data.data(), block_size);
 
     // End profiling
     cudaProfilerStop();
