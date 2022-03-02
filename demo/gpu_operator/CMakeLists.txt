@@ -18,7 +18,7 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../../common" ".")
 
 # Executable
 set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../common/cuda)
-add_executable(${PROJECT_NAME} main.cpp ${SOURCE_DIR}/transform.cu)
+add_executable(${PROJECT_NAME} main.cpp ${SOURCE_DIR}/transform.cu ${SOURCE_DIR}/scatter.cu)
 
 # Target libraries
 target_link_libraries(${PROJECT_NAME} dolfinx ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} Boost::program_options)

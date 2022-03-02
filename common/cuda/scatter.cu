@@ -15,7 +15,7 @@ static __global__ void _scatter(const int N, const int32_t* indices, const doubl
                                 double* out) {
   int gid = blockIdx.x * blockDim.x + threadIdx.x;
   if (gid < N) {
-    atomicAdd(&out[indices[gid]], in[gid]);
+    // atomicAdd(&out[indices[gid]], in[gid]);
   }
 }
 
