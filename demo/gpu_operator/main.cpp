@@ -81,8 +81,13 @@ int main(int argc, char* argv[]) {
 
     CUDA::allocator<double> allocator{};
     la::Vector<double, decltype(allocator)> x(idxmap, 1, allocator);
+    la::Vector<double, decltype(allocator)> y(idxmap, 1, allocator);
+
     auto uarray = u.x()->array();
     std::copy(uarray.begin(), uarray.end(), x.mutable_array().begin());
+
+    linalg::prefetch(0, x);
+    linalg::prefetch(0, y);
 
     // =====================================
     // Tabulate basis functions at quadrature points
@@ -121,19 +126,19 @@ int main(int argc, char* argv[]) {
     cuda::array<double> ue(Ne);
     cuda::array<double> uq(Nq);
     cuda::array<double> xe(Ne);
+    
+    double alpha = 1;
+    double beta = 0;
 
+    double t = MPI_Wtime();
     // =====================================
     // Apply gather operator Ue = G u
     // Ue <- u[dofmap]
     // From global dof vector to element based dof vector
     gather(ue.size(), dofmap.data(), x.array().data(), ue.data(), 512);
 
-    double alpha = 1;
-    double beta = 0;
-
     // =====================================
     // Apply operator B^T D B to Ue
-    double t = MPI_Wtime();
     // Uq^ = B Ue^T
     cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, nquads, ncells, ndofs, &alpha,
                 phiT.data(), nquads, ue.data(), ndofs, &beta, uq.data(), nquads);
@@ -143,13 +148,13 @@ int main(int argc, char* argv[]) {
     cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ndofs, ncells, nquads, &alpha,
                 phi.data(), ndofs, uq.data(), nquads, &beta, xe.data(), ndofs);
     cudaDeviceSynchronize();
-    t = MPI_Wtime() - t;
 
     // =====================================
     // Apply scatter operator
     // x[dofmap] <- Xe
     // From element based dof vector to global dof vector
-    // scatter(ue.size(), dofmap.data(), x.array().data(), ue.data(), 512);
+    scatter(xe.size(), dofmap.data(), xe.data(), y.mutable_array().data(), 512);
+    t = MPI_Wtime() - t;
 
     std::cout << "Number of cells: " << ncells;
     std::cout << "\nNumber of dofs: " << ndofs;

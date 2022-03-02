@@ -10,13 +10,13 @@
 #include <dolfinx/la/Vector.h>
 
 namespace utils {
-
+//-----------------------------------------------------------------------------
 template <typename C>
 void assert_cuda(C e) {
   if (e != CUBLAS_STATUS_SUCCESS)
     throw std::runtime_error("CUDA ERROR: " + std::to_string(e));
 }
-
+//-----------------------------------------------------------------------------
 /// Set device to be used for GPU executions for a given process.
 /// The number of processes should match the number of available devices.
 int set_device(MPI_Comm comm) {
@@ -36,7 +36,7 @@ int set_device(MPI_Comm comm) {
 
   return rank;
 }
-
+//-----------------------------------------------------------------------------
 void output_device_info() {
   int num_devices;
   cudaGetDeviceCount(&num_devices);
@@ -54,5 +54,4 @@ void output_device_info() {
   }
   std::cout << std::endl;
 }
-
 } // namespace utils

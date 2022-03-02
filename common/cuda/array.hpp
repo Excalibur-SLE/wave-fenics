@@ -8,7 +8,9 @@ namespace cuda {
 template <class T>
 class array {
 public:
-  explicit array(std::size_t size) : _size(size) {
+  array() = default;
+
+  array(std::size_t size) : _size(size) {
     cudaError_t e = cudaMalloc((void**)&_data, _size * sizeof(T));
     if (e != cudaSuccess) {
       throw std::runtime_error("Failed to allocate device memory.");
