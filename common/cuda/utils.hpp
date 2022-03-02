@@ -37,38 +37,8 @@ int set_device(MPI_Comm comm) {
   return rank;
 }
 
-template <typename T>
-auto create_distributed_vector(MPI_Comm comm, std::size_t global_size, T value = T{0},
-                               int block_size = 1) {
-
-  int size = dolfinx::MPI::size(comm);
-  int rank = dolfinx::MPI::rank(comm);
-
-  // Partition data
-  std::int32_t size_local = static_cast<std::int32_t>(global_size / size);
-  std::int32_t remainder = static_cast<std::int32_t>(global_size % size);
-
-  if (rank < remainder)
-    size_local++;
-
-  assert(std::numeric_limits<std::int32_t>::max() > size_local);
-
-  // Create simple indexmap with no overlap
-  auto map = std::make_shared<dolfinx::common::IndexMap>(comm, size_local);
-
-  CUDA::allocator<T> allocator{};
-  dolfinx::la::Vector<T, decltype(allocator)> vec(map, block_size, allocator);
-
-  T* data = vec.mutable_array().data();
-
-  cudaMemset(data, value, size_local * sizeof(T));
-
-  return vec;
-}
-
 void output_device_info() {
   int num_devices;
-
   cudaGetDeviceCount(&num_devices);
   for (int i = 0; i < num_devices; i++) {
     cudaDeviceProp prop;

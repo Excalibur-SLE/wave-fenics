@@ -1,8 +1,8 @@
 
 #include "scatter.hpp"
 
-static __global__ void _gather(const int N, const int* indices, const double* in,
-                               double* out) {
+static __global__ void _gather(const int N, const std::int32_t* __restrict__ indices,
+                               const double* __restrict__ in, double* __restrict__ out) {
   int gid = blockIdx.x * blockDim.x + threadIdx.x;
   if (gid < N) {
     out[gid] = in[indices[gid]];
@@ -11,7 +11,7 @@ static __global__ void _gather(const int N, const int* indices, const double* in
 
 // The 64-bit floating-point version of atomicAdd() is only supported by devices of
 // compute capability 6.x and higher.
-static __global__ void _scatter(const int N, const int* indices, const double* in,
+static __global__ void _scatter(const int N, const int32_t* indices, const double* in,
                                 double* out) {
   int gid = blockIdx.x * blockDim.x + threadIdx.x;
   if (gid < N) {

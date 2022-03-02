@@ -9,6 +9,7 @@
 
 // Helper functions
 #include <cuda/allocator.hpp>
+#include <cuda/array.hpp>
 #include <cuda/la.hpp>
 #include <cuda/scatter.hpp>
 #include <cuda/utils.hpp>
@@ -73,28 +74,20 @@ int main(int argc, char* argv[]) {
 
     std::int32_t Ne = ncells * ndofs;
 
-    double* xe;
-    assert_cublas(cudaMalloc((void**)&xe, Ne * sizeof(double)));
-
-    std::int32_t* dofmap;
-    assert_cublas(cudaMalloc((void**)&dofmap, Ne * sizeof(std::int32_t)));
+    cuda::array<double> xe(Ne);
+    cuda::array<std::int32_t> dofmap(Ne);
     const std::vector<std::int32_t>& dof_array = V->dofmap()->list().array();
-    cudaMemcpy(dofmap, dof_array.data(), Ne * sizeof(std::int32_t),
-               cudaMemcpyHostToDevice);
+    dofmap.set(dof_array);
 
     // prefetch data to gpu
     linalg::prefetch(rank, x);
-    gather(Ne, dofmap, x.array().data(), xe, 512);
+    gather(Ne, dofmap.data(), x.array().data(), xe.data(), 512);
 
-    std::vector<double> h_xe(Ne);
-    double* data = h_xe.data();
-    cudaMemcpy(data, xe, Ne * sizeof(double), cudaMemcpyDeviceToHost);
+    auto h_xe = xe.copy_to_host();
 
     for (int i = 0; i < Ne; i++) {
       assert(h_xe[i] == double(dof_array[i]));
     }
-
-    cudaProfilerStop();
   }
 
   common::subsystem::finalize_mpi();
