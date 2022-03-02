@@ -92,11 +92,10 @@ int main(int argc, char* argv[])
 
     // Recv displacements and sizes
     const std::vector<std::int32_t>& displs_recv_fwd
-        = {}; // x.map()->scatter_fwd_receive_offsets();
+        = x.map()->scatter_fwd_receive_offsets();
     std::vector<std::int32_t> sizes_recv_fwd(displs_recv_fwd.size());
     std::adjacent_difference(displs_recv_fwd.begin(), displs_recv_fwd.end(),
                              sizes_recv_fwd.begin());
-    // std::vector<double> recv_buffer(displs_recv_fwd.back());
     cudaMalloc((void**)&d_recv_buffer, displs_recv_fwd.back() * sizeof(double));
 
     // Send displacements and sizes
