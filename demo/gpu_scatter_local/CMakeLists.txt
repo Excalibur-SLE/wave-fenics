@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(${PROJECT_NAME} LANGUAGES C CXX CUDA)
-set(PROJECT_NAME operator)
+set(PROJECT_NAME scatter)
 project(${PROJECT_NAME})
 
 # Set C++17 standard
@@ -17,8 +17,8 @@ find_package(Boost 1.70 REQUIRED program_options)
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../../common" ".")
 
 # Executable
-set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../common/cuda)
-add_executable(${PROJECT_NAME} main.cpp ${SOURCE_DIR}/transform.cu ${SOURCE_DIR}/scatter.cu)
+set(CUDA_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/../../common/cuda/)
+add_executable(${PROJECT_NAME} main.cpp ${CUDA_SOURCES}/scatter.cu)
 
 # Target libraries
 target_link_libraries(${PROJECT_NAME} dolfinx ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} Boost::program_options)
