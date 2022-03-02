@@ -1,9 +1,9 @@
 #include <basix/e-lagrange.h>
+#include <boost/program_options.hpp>
 #include <cmath>
 #include <dolfinx.h>
 #include <dolfinx/io/XDMFFile.h>
 #include <iostream>
-#include <boost/program_options.hpp>
 
 #include <cuda_profiler_api.h>
 
@@ -21,18 +21,15 @@ int main(int argc, char* argv[]) {
 
   po::options_description desc("Allowed options");
   desc.add_options()("help,h", "print usage message")(
-                                                      "size", po::value<std::size_t>()->default_value(32))
-    ("degree", po::value<int>()->default_value(1));
+      "size", po::value<std::size_t>()->default_value(32))(
+      "degree", po::value<int>()->default_value(1));
 
   po::variables_map vm;
-  po::store(po::command_line_parser(argc, argv)
-                .options(desc)
-                .allow_unregistered()
-                .run(), vm);
+  po::store(po::command_line_parser(argc, argv).options(desc).allow_unregistered().run(),
+            vm);
   po::notify(vm);
 
-  if (vm.count("help"))
-  {
+  if (vm.count("help")) {
     std::cout << desc << "\n";
     return 0;
   }
