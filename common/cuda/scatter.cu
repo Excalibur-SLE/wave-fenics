@@ -32,15 +32,15 @@ static __global__ void _scatter(std::int32_t N, const int32_t* __restrict__ indi
   }
 }
 //-----------------------------------------------------------------------------
-#if __CUDA_ARCH__ < 600
-static __global__ void _scatter(std::int32_t N, const int32_t* __restrict__ indices,
-                                const double* __restrict__ in, double* __restrict__ out) {
-  int gid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (gid < N) {
-    _atomicAdd(&out[indices[gid]], in[gid]);
-  }
-}
-#endif
+// #if __CUDA_ARCH__ < 600
+// static __global__ void _scatter(std::int32_t N, const int32_t* __restrict__ indices,
+//                                 const double* __restrict__ in, double* __restrict__ out) {
+//   int gid = blockIdx.x * blockDim.x + threadIdx.x;
+//   if (gid < N) {
+//     _atomicAdd(&out[indices[gid]], in[gid]);
+//   }
+// }
+// #endif
 //-----------------------------------------------------------------------------
 template <typename T>
 void gather(std::int32_t N, const std::int32_t* indices, const T* in, T* out,

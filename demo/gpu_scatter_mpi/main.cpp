@@ -84,12 +84,12 @@ public:
     MPI_Datatype data_type = dolfinx::MPI::mpi_type<double>();
 
     // Set thread block size for CUDA kernels
-    const int block_size = 512;
+    const int cuda_block_size = 512;
 
     // Step 1: pack send buffer
     xtl::span<const double> x_local_const = x.array();
     gather(d_indices->size(), d_indices->data(), x_local_const.data(),
-           d_send_buffer->data(), block_size);
+           d_send_buffer->data(), cuda_block_size);
 
     // Step 2: begin scatter
     std::vector<MPI_Request> req(fwd_recv_neighbors.size());
@@ -112,7 +112,7 @@ public:
     xtl::span<double> x_remote(x.mutable_array().data() + x.map()->size_local(),
                                x.map()->num_ghosts());
     gather(d_ghost_pos_recv_fwd->size(), d_ghost_pos_recv_fwd->data(),
-           d_recv_buffer->data(), x_remote.data(), block_size);
+           d_recv_buffer->data(), x_remote.data(), cuda_block_size);
   }
 
   void update_rev(la::Vector<double, CUDA::allocator<double>>& x)
@@ -120,7 +120,7 @@ public:
     MPI_Datatype data_type = dolfinx::MPI::mpi_type<double>();
 
     // Set thread block size for CUDA kernels
-    const int block_size = 512;    
+    const int cuda_block_size = 512;    
 
     // Scatter reverse (ghosts to owners -> many to one map)
     // _buffer_recv_fwd is send_buffer
@@ -132,7 +132,7 @@ public:
         x.array().data() + x.map()->size_local(), x.map()->num_ghosts());
     // FIXME without atomics
     scatter(d_indices->size(), d_ghost_pos_recv_fwd->data(),
-            x_remote_const.data(), d_recv_buffer->data(), block_size);
+            x_remote_const.data(), d_recv_buffer->data(), cuda_block_size);
 
     // Step 2: begin scatter
     std::vector<MPI_Request> req(rev_recv_neighbors.size());   
@@ -155,7 +155,7 @@ public:
     // Step 3: copy/accumulate into owned part of the vector
     xtl::span<double> x_local(x.mutable_array());
     scatter(d_indices->size(), d_indices->data(), d_send_buffer->data(),
-            x_local.data(), block_size);
+            x_local.data(), cuda_block_size);
   }
 
 private:
@@ -219,13 +219,16 @@ int main(int argc, char* argv[])
     // Create a Basix continuous Lagrange element of given degree
     basix::FiniteElement e = basix::element::create_lagrange(
         mesh::cell_type_to_basix_type(mesh::CellType::hexahedron), degree,
-        basix::element::lagrange_variant::equispaced, true);
-
+        basix::element::lagrange_variant::equispaced, false);
+    
     // Create a scalar function space
     auto V = std::make_shared<fem::FunctionSpace>(
         fem::create_functionspace(mesh, e, 1));
     auto idxmap = V->dofmap()->index_map;
 
+    std::cout << "num ghosts = " << idxmap->num_ghosts() << "\n";
+
+    
     // Assemble RHS vector
     CUDA::allocator<double> allocator{};
     la::Vector<double, decltype(allocator)> x(idxmap, 1, allocator);
