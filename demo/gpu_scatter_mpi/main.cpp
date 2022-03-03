@@ -3,6 +3,7 @@
 #include <cmath>
 #include <dolfinx.h>
 #include <dolfinx/io/XDMFFile.h>
+#include <dolfinx/common/log.h>
 #include <iostream>
 #include <memory>
 
@@ -23,6 +24,7 @@ class VectorUpdater
 public:
   VectorUpdater(std::shared_ptr<const dolfinx::common::IndexMap> index_map)
   {
+    LOG(INFO) << "Vector Updater";
     // Compute recv displacements and sizes
     displs_recv_fwd = index_map->scatter_fwd_receive_offsets();
     sizes_recv_fwd.resize(displs_recv_fwd.size());
@@ -37,6 +39,7 @@ public:
     std::adjacent_difference(displs_send_fwd.begin(), displs_send_fwd.end(),
                              sizes_send_fwd.begin());
 
+    LOG(INFO) << "Copy to device";
     // Copy indices to device
     const std::vector<std::int32_t>& indices = shared_indices.array();
     d_indices = std::make_unique<cuda::array<std::int32_t>>(indices.size());
@@ -54,6 +57,7 @@ public:
     d_recv_buffer
         = std::make_unique<cuda::array<double>>(displs_recv_fwd.back());
 
+    LOG(INFO) << "Get neighbourhood info";
     // Find my neighbors in forward communicator
     fwd_comm = index_map->comm(dolfinx::common::IndexMap::Direction::forward);
     int num_recv_neighbors, num_send_neighbors;
@@ -62,9 +66,11 @@ public:
                                    &num_send_neighbors, &weighted);
     fwd_recv_neighbors.resize(num_recv_neighbors);
     fwd_send_neighbors.resize(num_send_neighbors);
+    std::vector<int> weights_recv(num_recv_neighbors);
+    std::vector<int> weights_send(num_send_neighbors);
     MPI_Dist_graph_neighbors(fwd_comm, num_recv_neighbors,
-			     fwd_recv_neighbors.data(), nullptr,
-        num_send_neighbors, fwd_send_neighbors.data(), nullptr);
+			     fwd_recv_neighbors.data(), weights_recv.data(),
+			     num_send_neighbors, fwd_send_neighbors.data(), weights_send.data());
 
     // Find my neighbors in reverse communicator
     rev_comm = index_map->comm(dolfinx::common::IndexMap::Direction::reverse);
@@ -73,14 +79,16 @@ public:
                                    &num_rev_send_neighbors, &weighted);
     rev_recv_neighbors.resize(num_rev_recv_neighbors);
     rev_send_neighbors.resize(num_rev_send_neighbors);
+    weights_recv.resize(num_rev_recv_neighbors);
+    weights_send.resize(num_rev_send_neighbors);
     MPI_Dist_graph_neighbors(
-        rev_comm, num_rev_recv_neighbors, rev_recv_neighbors.data(), nullptr,
-        num_rev_send_neighbors, rev_send_neighbors.data(), nullptr);
+			     rev_comm, num_rev_recv_neighbors, rev_recv_neighbors.data(),weights_recv.data(),
+			     num_rev_send_neighbors, rev_send_neighbors.data(), weights_send.data());
   }
 
   void update_fwd(la::Vector<double, CUDA::allocator<double>>& x)
   {
-
+    LOG(INFO) << "update_+fwd";
     MPI_Datatype data_type = dolfinx::MPI::mpi_type<double>();
 
     // Set thread block size for CUDA kernels
@@ -117,6 +125,8 @@ public:
 
   void update_rev(la::Vector<double, CUDA::allocator<double>>& x)
   {
+    LOG(INFO) << "update_rev";
+
     MPI_Datatype data_type = dolfinx::MPI::mpi_type<double>();
 
     // Set thread block size for CUDA kernels
@@ -130,8 +140,7 @@ public:
     // Step 1: pack send buffer
     xtl::span<const double> x_remote_const(
         x.array().data() + x.map()->size_local(), x.map()->num_ghosts());
-    // FIXME without atomics
-    scatter(d_indices->size(), d_ghost_pos_recv_fwd->data(),
+    gather(d_indices->size(), d_ghost_pos_recv_fwd->data(),
             x_remote_const.data(), d_recv_buffer->data(), cuda_block_size);
 
     // Step 2: begin scatter
@@ -230,6 +239,7 @@ int main(int argc, char* argv[])
 
     
     // Assemble RHS vector
+    LOG(INFO) << "Allocate vector";
     CUDA::allocator<double> allocator{};
     la::Vector<double, decltype(allocator)> x(idxmap, 1, allocator);
 
