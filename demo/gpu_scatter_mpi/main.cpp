@@ -4,6 +4,7 @@
 #include <dolfinx.h>
 #include <dolfinx/io/XDMFFile.h>
 #include <dolfinx/common/log.h>
+#include <dolfinx/common/Timer.h>
 #include <iostream>
 #include <memory>
 
@@ -284,11 +285,48 @@ int main(int argc, char* argv[])
 	LOG(INFO) << "gh_sum = " << gh_sum;
 	assert (gl_sum == gh_sum);
       }
+
+    // Now some timings
+
+    dolfinx::common::Timer tcuda("Fwd CUDA-MPI");
+    LOG(INFO) << "CUDA MPI updates";
+    {
+      for (int i = 0; i < 10000; ++i)
+	vu.update_fwd(x);
+    }
+    tcuda.stop();
     
+    dolfinx::common::Timer tcpu("Fwd CPU-MPI");
+    LOG(INFO) << "CPU MPI updates";
+    {
+      for (int i = 0; i < 10000; ++i)
+	x.scatter_fwd();
+    }
+    tcpu.stop();
+
+
+    dolfinx::common::Timer tcuda2("Rev CUDA-MPI");
+    LOG(INFO) << "CUDA MPI rev updates";
+    {
+      for (int i = 0; i < 10000; ++i)
+	vu.update_rev(x);
+    }
+    tcuda2.stop();
+    
+    dolfinx::common::Timer tcpu2("Rev CPU-MPI");
+    LOG(INFO) << "CPU MPI rev updates";
+    {
+      for (int i = 0; i < 10000; ++i)
+	x.scatter_rev(dolfinx::common::IndexMap::Mode::add);
+    }
+    tcpu2.stop();
+
     // End profiling
     cudaProfilerStop();
   }
 
+  dolfinx::list_timings(MPI_COMM_WORLD, {dolfinx::TimingType::wall});
+  
   common::subsystem::finalize_mpi();
   return 0;
 }
