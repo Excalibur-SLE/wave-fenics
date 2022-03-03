@@ -14,5 +14,5 @@ module load OpenMPI
 
 # nsys profile --trace=cuda,mpi mpirun -n 4 ./planar3d --size=100 --degree=4
 
-mpirun -n 4 ./planar3d --size=100 --degree=4
+mpirun -n 4 ./planar3d --size=50 --degree=4
 

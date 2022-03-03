@@ -140,7 +140,7 @@ public:
     // Step 1: pack send buffer
     xtl::span<const double> x_remote_const(
         x.array().data() + x.map()->size_local(), x.map()->num_ghosts());
-    gather(d_indices->size(), d_ghost_pos_recv_fwd->data(),
+    gather(d_ghost_pos_recv_fwd->size(), d_ghost_pos_recv_fwd->data(),
             x_remote_const.data(), d_recv_buffer->data(), cuda_block_size);
 
     // Step 2: begin scatter
@@ -235,14 +235,14 @@ int main(int argc, char* argv[])
         fem::create_functionspace(mesh, e, 1));
     auto idxmap = V->dofmap()->index_map;
 
-    std::cout << "num ghosts = " << idxmap->num_ghosts() << "\n";
-
-    
     // Assemble RHS vector
     LOG(INFO) << "Allocate vector";
     CUDA::allocator<double> allocator{};
     la::Vector<double, decltype(allocator)> x(idxmap, 1, allocator);
 
+    // Fill with rank values
+    x.set((double)rank);
+    
     VectorUpdater vu(x.map());
 
     // Prefetch data to gpu
@@ -253,8 +253,38 @@ int main(int argc, char* argv[])
 
     vu.update_fwd(x);
 
+    // Ghost region should fill up with external ranks with float values
+    // the same as ghost_owner_rank in the index_map.
+
+    auto ghost_owner = x.map()->ghost_owner_rank();
+    auto w = x.array();
+    const int size_local = x.map()->size_local();
+    const int num_ghosts = x.map()->num_ghosts();
+    for (int i = 0; i < num_ghosts; ++i)
+      assert ((int)w[size_local + i] == ghost_owner[i]);
+
+    // Fill up ghost region with ones and clear the rest.
+    x.set(0.0);
+    std::fill(x.mutable_array().data() + size_local,
+	      x.mutable_array().data() + size_local + num_ghosts, 1.0);
+    
     vu.update_rev(x);
 
+    double sum  = std::accumulate(x.array().data(),
+				  x.array().data() + size_local, 0.0);
+
+    double gl_sum;
+    MPI_Reduce(&sum, &gl_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    int gh_sum;
+    MPI_Reduce(&num_ghosts, &gh_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0)
+      {
+	LOG(INFO) << "gh_sum and gl_sum should be the same";
+	LOG(INFO) << "gl_sum = " << gl_sum;
+	LOG(INFO) << "gh_sum = " << gh_sum;
+	assert (gl_sum == gh_sum);
+      }
+    
     // End profiling
     cudaProfilerStop();
   }
