@@ -8,6 +8,7 @@
 #include <cuda/array.hpp>
 
 #include "cuda/scatter.hpp"
+#include "mass_kernel.hpp"
 #include "precompute.hpp"
 
 using namespace dolfinx;
@@ -56,6 +57,7 @@ public:
 
     _num_quads = weights.size();
     _num_dofs = element.dim();
+
     std::size_t Ne = _num_cells * _num_dofs;
     xe = std::make_unique<cuda::array<T>>(Ne);
     ye = std::make_unique<cuda::array<T>>(Ne);
@@ -66,9 +68,7 @@ public:
   std::size_t num_quads() const { return _num_quads; }
   std::size_t num_cells() const { return _num_cells; }
   std::size_t num_dofs() const { return _num_dofs; }
-  std::size_t flops() const {
-    return 4 * _num_cells * _num_quads * _num_dofs + _num_cells * _num_quads;
-  }
+  double flops() const { return 4 * _num_cells * _num_quads * _num_dofs; }
 
   //-------------------------------------------------------//
   /// Compute y = Ax with matrix-free operator
@@ -76,8 +76,10 @@ public:
   void apply(const Vector& x, Vector& y) {
     const T* _x = x.array().data();
     T* _y = y.mutable_array().data();
-    gather(dofarray->size(), dofarray->data(), _x, xe->data(), 512);
-    scatter(dofarray->size(), dofarray->data(), xe->data(), _y, 512);
+    std::size_t Ne = _num_cells * _num_dofs;
+    gather<T>(dofarray->size(), dofarray->data(), _x, xe->data(), 512);
+    mass_apply<T>(Ne, xe->data(), phi->data(), detJ->data(), ye->data(), _num_dofs, 512);
+    scatter<T>(dofarray->size(), dofarray->data(), ye->data(), _y, 512);
   }
 
 private:

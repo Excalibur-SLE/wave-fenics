@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
     // Create a Basix continuous Lagrange element of given degree
     basix::FiniteElement e = basix::element::create_lagrange(
         mesh::cell_type_to_basix_type(mesh::CellType::hexahedron), degree,
-        basix::element::lagrange_variant::equispaced, true);
+        basix::element::lagrange_variant::equispaced, false);
 
     // Create a scalar function space
     std::shared_ptr<fem::FunctionSpace> V
@@ -90,16 +90,18 @@ int main(int argc, char* argv[]) {
     linalg::prefetch(0, y);
 
     auto quad = basix::quadrature::type::gauss_jacobi;
-    MassOperator<double> op(V, e, quad, 2 * degree + 2);
+    MassOperator<double> op(V, e, quad, 2 * degree);
 
     double t = MPI_Wtime();
     op.apply(x, y);
     t = MPI_Wtime() - t;
 
+    std::cout << y.norm() << std::endl;
+
     std::cout << "Number of cells: " << op.num_cells();
     std::cout << "\nNumber of dofs: " << op.num_dofs();
     std::cout << "\nNumber of quads: " << op.num_quads();
-    std::cout << "\n#FLOPs: " << op.flops() / t;
+    std::cout << "\n#FLOPs: " << op.flops();
     std::cout << "\nDOF/s: " << V->dofmap()->index_map->size_local() / t;
     std::cout << std::endl;
   }
