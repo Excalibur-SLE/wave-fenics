@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cuda/array.hpp>
 
+#include "cuda/scatter.hpp"
 #include "precompute.hpp"
 
 using namespace dolfinx;
@@ -21,7 +22,7 @@ public:
     dolfinx::common::Timer t0("~setup phase");
     std::shared_ptr<const mesh::Mesh> mesh = V->mesh();
     int tdim = mesh->topology().dim();
-    std::size_t ncells = mesh->topology().index_map(tdim)->size_local();
+    _num_cells = mesh->topology().index_map(tdim)->size_local();
 
     auto cell = element.cell_type();
 
@@ -47,20 +48,37 @@ public:
     // Create a buffer with the dofmap
     std::shared_ptr<const dolfinx::fem::DofMap> dofmap = V->dofmap();
     const std::vector<std::int32_t>& dof_array = dofmap->list().array();
-    assert(ncells == dofmap->list().num_nodes());
+    assert(_num_cells == dofmap->list().num_nodes());
     assert(_phi.shape(1) == size_t(dofmap->list().num_links(0)));
 
     dofarray = std::make_unique<cuda::array<std::int32_t>>(dof_array.size());
     dofarray->set(dof_array);
 
-    int nquads = weights.size();
-    int ndofs = element.dim();
-    std::size_t Ne = ncells * ndofs;
+    _num_quads = weights.size();
+    _num_dofs = element.dim();
+    std::size_t Ne = _num_cells * _num_dofs;
     xe = std::make_unique<cuda::array<T>>(Ne);
     ye = std::make_unique<cuda::array<T>>(Ne);
   }
 
   ~MassOperator() = default;
+
+  std::size_t num_quads() const { return _num_quads; }
+  std::size_t num_cells() const { return _num_cells; }
+  std::size_t num_dofs() const { return _num_dofs; }
+  std::size_t flops() const {
+    return 4 * _num_cells * _num_quads * _num_dofs + _num_cells * _num_quads;
+  }
+
+  //-------------------------------------------------------//
+  /// Compute y = Ax with matrix-free operator
+  template <typename Vector>
+  void apply(const Vector& x, Vector& y) {
+    const T* _x = x.array().data();
+    T* _y = y.mutable_array().data();
+    gather(dofarray->size(), dofarray->data(), _x, xe->data(), 512);
+    scatter(dofarray->size(), dofarray->data(), xe->data(), _y, 512);
+  }
 
 private:
   std::unique_ptr<cuda::array<T>> detJ;
@@ -68,4 +86,8 @@ private:
   std::unique_ptr<cuda::array<std::int32_t>> dofarray;
   std::unique_ptr<cuda::array<T>> xe;
   std::unique_ptr<cuda::array<T>> ye;
+
+  std::size_t _num_quads;
+  std::size_t _num_dofs;
+  std::size_t _num_cells;
 };

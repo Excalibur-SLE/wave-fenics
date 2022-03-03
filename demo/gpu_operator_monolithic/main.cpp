@@ -93,15 +93,15 @@ int main(int argc, char* argv[]) {
     MassOperator<double> op(V, e, quad, 2 * degree + 2);
 
     double t = MPI_Wtime();
-
+    op.apply(x, y);
     t = MPI_Wtime() - t;
 
-    // std::cout << "Number of cells: " << ncells;
-    // std::cout << "\nNumber of dofs: " << ndofs;
-    // std::cout << "\nNumber of quads: " << nquads;
-    // std::cout << "\n#FLOPs: " << ((4 * ncells * nquads * ndofs) + Ne) / t;
-    // std::cout << "\nDOF/s: " << V->dofmap()->index_map->size_local() / t;
-    // std::cout << std::endl;
+    std::cout << "Number of cells: " << op.num_cells();
+    std::cout << "\nNumber of dofs: " << op.num_dofs();
+    std::cout << "\nNumber of quads: " << op.num_quads();
+    std::cout << "\n#FLOPs: " << op.flops() / t;
+    std::cout << "\nDOF/s: " << V->dofmap()->index_map->size_local() / t;
+    std::cout << std::endl;
   }
 
   common::subsystem::finalize_mpi();
