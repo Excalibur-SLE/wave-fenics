@@ -13,8 +13,8 @@ int main(int argc, char* argv[]) {
 
   MPI_Init(&argc, &argv);
 
-  int ndofs = 125;
-  int ncells = 100000;
+  std::size_t ndofs = 125;
+  std::size_t ncells = 100000;
 
   cublasHandle_t handle;
   cublasCreate(&handle);
