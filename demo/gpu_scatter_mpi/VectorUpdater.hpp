@@ -64,7 +64,8 @@ public:
 
     LOG(INFO) << "Get neighbourhood info";
     // Find my neighbors in forward communicator
-    MPI_Comm_dup(index_map->comm(dolfinx::common::IndexMap::Direction::forward), &fwd_comm);
+    MPI_Comm_dup(index_map->comm(dolfinx::common::IndexMap::Direction::forward),
+                 &fwd_comm);
 
     int num_recv_neighbors, num_send_neighbors;
     int weighted;
@@ -80,7 +81,8 @@ public:
                              weights_send.data());
 
     // Find my neighbors in reverse communicator
-    MPI_Comm_dup(index_map->comm(dolfinx::common::IndexMap::Direction::reverse), &rev_comm);
+    MPI_Comm_dup(index_map->comm(dolfinx::common::IndexMap::Direction::reverse),
+                 &rev_comm);
     int num_rev_recv_neighbors, num_rev_send_neighbors;
     MPI_Dist_graph_neighbors_count(rev_comm, &num_rev_recv_neighbors,
                                    &num_rev_send_neighbors, &weighted);
@@ -100,11 +102,8 @@ public:
     MPI_Comm_free(&fwd_comm);
     MPI_Comm_free(&rev_comm);
   }
-  
-  /// Do a forward scatter, sending locally owned values to the ghost region on
-  /// remote processes
-  /// @param x Vector to update
-  void update_fwd(la::Vector<T, AllocatorT>& x)
+
+  void update_fwd_begin(const la::Vector<T, AllocatorT>& x)
   {
     // Step 1: pack send buffer
     xtl::span<const T> x_local_const = x.array();
@@ -112,25 +111,29 @@ public:
            d_send_buffer->data(), cuda_block_size);
 
     // Step 2: begin scatter
-    std::vector<MPI_Request> req(fwd_recv_neighbors.size());
-    for (std::size_t i = 0; i < req.size(); ++i)
+    requests.resize(fwd_recv_neighbors.size());
+    for (std::size_t i = 0; i < fwd_recv_neighbors.size(); ++i)
     {
-      int status = MPI_Irecv(d_recv_buffer->data() + displs_recv_fwd[i],
-			     sizes_recv_fwd[i + 1], data_type, fwd_recv_neighbors[i], 0,
-			     fwd_comm, &(req[i]));
-      assert (status == MPI_SUCCESS);
+      int status = MPI_Irecv(
+          d_recv_buffer->data() + displs_recv_fwd[i], sizes_recv_fwd[i + 1],
+          data_type, fwd_recv_neighbors[i], 0, fwd_comm, &(requests[i]));
+      assert(status == MPI_SUCCESS);
     }
 
     for (std::size_t i = 0; i < fwd_send_neighbors.size(); ++i)
     {
       int status = MPI_Send(d_send_buffer->data() + displs_send_fwd[i],
-			    sizes_send_fwd[i + 1], data_type, fwd_send_neighbors[i], 0,
-			    fwd_comm);
-      assert (status == MPI_SUCCESS);
+                            sizes_send_fwd[i + 1], data_type,
+                            fwd_send_neighbors[i], 0, fwd_comm);
+      assert(status == MPI_SUCCESS);
     }
+  }
 
-    int status = MPI_Waitall(req.size(), req.data(), MPI_STATUSES_IGNORE);
-    assert (status == MPI_SUCCESS);
+  void update_fwd_end(la::Vector<T, AllocatorT>& x)
+  {
+    int status
+        = MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+    assert(status == MPI_SUCCESS);
 
     // Step 3: copy into ghost area
     xtl::span<T> x_remote(x.mutable_array().data() + x.map()->size_local(),
@@ -139,10 +142,19 @@ public:
            d_recv_buffer->data(), x_remote.data(), cuda_block_size);
   }
 
+  /// Do a forward scatter, sending locally owned values to the ghost region on
+  /// remote processes
+  /// @param x Vector to update
+  void update_fwd(const la::Vector<T, AllocatorT>& x)
+  {
+    update_fwd_begin(x);
+    update_fwd_end(x);
+  }
+
   /// Do a reverse scatter, accumulating ghost values from remote processes into
   /// owned values on the local process
   /// @param x Vector to update
-  void update_rev(la::Vector<T, AllocatorT>& x)
+  void update_rev_begin(const la::Vector<T, AllocatorT>& x)
   {
     // Scatter reverse (ghosts to owners -> many to one map)
     // _buffer_recv_fwd is send_buffer
@@ -156,25 +168,29 @@ public:
            x_remote_const.data(), d_recv_buffer->data(), cuda_block_size);
 
     // Step 2: begin scatter
-    std::vector<MPI_Request> req(rev_recv_neighbors.size());
-    for (std::size_t i = 0; i < req.size(); ++i)
+    requests.resize(rev_recv_neighbors.size());
+    for (std::size_t i = 0; i < rev_recv_neighbors.size(); ++i)
     {
-      int status = MPI_Irecv(d_send_buffer->data() + displs_send_fwd[i],
-			     sizes_send_fwd[i + 1], data_type, rev_recv_neighbors[i], 0,
-			     rev_comm, &(req[i]));
-      assert (status == MPI_SUCCESS);
+      int status = MPI_Irecv(
+          d_send_buffer->data() + displs_send_fwd[i], sizes_send_fwd[i + 1],
+          data_type, rev_recv_neighbors[i], 0, rev_comm, &(requests[i]));
+      assert(status == MPI_SUCCESS);
     }
 
     for (std::size_t i = 0; i < rev_send_neighbors.size(); ++i)
     {
       int status = MPI_Send(d_recv_buffer->data() + displs_recv_fwd[i],
-			    sizes_recv_fwd[i + 1], data_type, rev_send_neighbors[i], 0,
-			    rev_comm);
-      assert (status == MPI_SUCCESS);
+                            sizes_recv_fwd[i + 1], data_type,
+                            rev_send_neighbors[i], 0, rev_comm);
+      assert(status == MPI_SUCCESS);
     }
+  }
 
-    int status = MPI_Waitall(req.size(), req.data(), MPI_STATUSES_IGNORE);
-    assert (status == MPI_SUCCESS);
+  void update_rev_end(la::Vector<T, AllocatorT>& x)
+  {
+    int status
+        = MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+    assert(status == MPI_SUCCESS);
 
     // Step 3: copy/accumulate into owned part of the vector
     xtl::span<T> x_local(x.mutable_array());
@@ -182,11 +198,22 @@ public:
             x_local.data(), cuda_block_size);
   }
 
+  /// Do a reverse scatter, accumulating ghost values from remote processes into
+  /// owned values on the local process
+  /// @param x Vector to update
+  void update_rev(const la::Vector<T, AllocatorT>& x)
+  {
+    update_rev_begin(x);
+    update_rev_end(x);
+  }
+
 private:
   // Parameters and MPI comms
   int cuda_block_size;
   MPI_Datatype data_type;
   MPI_Comm fwd_comm, rev_comm;
+
+  std::vector<MPI_Request> requests;
 
   // Displacements and sizes
   std::vector<std::int32_t> displs_recv_fwd, sizes_recv_fwd;
