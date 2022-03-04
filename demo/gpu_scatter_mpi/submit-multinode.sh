@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=mhdz1996-wavefenics
-#SBATCH --reservation=mhdz1996-wavefenics
+#SBATCH --nodes=2
 #SBATCH --tasks-per-node=4
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:4
@@ -12,7 +12,5 @@ module purge
 module load baskerville
 module load OpenMPI
 
-nsys profile --capture-range=cudaProfilerApi --trace=cuda,mpi mpirun -n 4 ./planar3d --size=100 --degree=4
-
-# mpirun -n 4 ./planar3d --size=50 --degree=4
+mpirun -n 8 ./planar3d --size=50 --degree=4
 

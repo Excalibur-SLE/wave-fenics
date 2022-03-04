@@ -56,7 +56,11 @@ int main(int argc, char* argv[])
   {
     // MPI
     MPI_Comm mpi_comm{MPI_COMM_WORLD};
-    int rank = utils::set_device(mpi_comm);
+    MPI_Comm local_comm;
+    MPI_Comm_split_type(mpi_comm, MPI_COMM_TYPE_SHARED,0, MPI_INFO_NULL, &local_comm);
+    
+    int gpu_rank = utils::set_device(local_comm);
+    int mpi_rank = dolfinx::MPI::rank(mpi_comm);
     MPI_Datatype data_type = dolfinx::MPI::mpi_type<double>();
 
     // Read mesh and mesh tags
@@ -82,12 +86,12 @@ int main(int argc, char* argv[])
     la::Vector<double, decltype(allocator)> x(idxmap, 1, allocator);
 
     // Fill with rank values
-    x.set((double)rank);
+    x.set((double)mpi_rank);
 
     VectorUpdater vu(x);
 
     // Prefetch data to gpu
-    linalg::prefetch(rank, x);
+    linalg::prefetch(gpu_rank, x);
 
     // Start profiling
     cudaProfilerStart();
@@ -111,6 +115,10 @@ int main(int argc, char* argv[])
 
     vu.update_rev(x);
 
+    // End profiling
+    cudaProfilerStop();
+
+    
     double sum
         = std::accumulate(x.array().data(), x.array().data() + size_local, 0.0);
 
@@ -118,7 +126,7 @@ int main(int argc, char* argv[])
     MPI_Reduce(&sum, &gl_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     int gh_sum;
     MPI_Reduce(&num_ghosts, &gh_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-    if (rank == 0)
+    if (mpi_rank == 0)
     {
       LOG(INFO) << "gh_sum and gl_sum should be the same";
       LOG(INFO) << "gl_sum = " << gl_sum;
@@ -160,8 +168,6 @@ int main(int argc, char* argv[])
     }
     tcpu2.stop();
 
-    // End profiling
-    cudaProfilerStop();
   }
 
   dolfinx::list_timings(MPI_COMM_WORLD, {dolfinx::TimingType::wall});
