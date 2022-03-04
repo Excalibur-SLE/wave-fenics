@@ -145,7 +145,7 @@ public:
   /// Do a forward scatter, sending locally owned values to the ghost region on
   /// remote processes
   /// @param x Vector to update
-  void update_fwd(const la::Vector<T, AllocatorT>& x)
+  void update_fwd(la::Vector<T, AllocatorT>& x)
   {
     update_fwd_begin(x);
     update_fwd_end(x);
@@ -201,7 +201,7 @@ public:
   /// Do a reverse scatter, accumulating ghost values from remote processes into
   /// owned values on the local process
   /// @param x Vector to update
-  void update_rev(const la::Vector<T, AllocatorT>& x)
+  void update_rev(la::Vector<T, AllocatorT>& x)
   {
     update_rev_begin(x);
     update_rev_end(x);
