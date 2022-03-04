@@ -10,7 +10,6 @@
 #include <cuda/allocator.hpp>
 #include <cuda/array.hpp>
 #include <cuda/scatter.hpp>
-#include <cuda/utils.hpp>
 
 using namespace dolfinx;
 

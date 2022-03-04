@@ -15,9 +15,7 @@
 
 // Helper functions
 #include <cuda/allocator.hpp>
-#include <cuda/array.hpp>
 #include <cuda/la.hpp>
-#include <cuda/scatter.hpp>
 #include <cuda/utils.hpp>
 
 #include "VectorUpdater.hpp"
@@ -27,7 +25,6 @@ namespace po = boost::program_options;
 
 int main(int argc, char* argv[])
 {
-
   po::options_description desc("Allowed options");
   desc.add_options()("help,h", "print usage message")(
       "size", po::value<std::size_t>()->default_value(32))(
