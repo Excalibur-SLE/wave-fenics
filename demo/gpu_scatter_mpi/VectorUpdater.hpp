@@ -1,5 +1,5 @@
-// Copyright 2022 Chris Richardson and Athena Elafrou
-// MIT licence
+// Copyright (C) 2022 Chris Richardson and Athena Elafrou
+// SPDX-License-Identifier:    MIT
 
 #include <dolfinx/common/log.h>
 #include <dolfinx/la/Vector.h>
@@ -14,15 +14,23 @@
 
 using namespace dolfinx;
 
+/// Updater for distributed dolfinx::la::Vector<T> which has been
+/// allocated on GPU using CUDA::allocator<T>
+/// It does not hold a copy of the Vector or the IndexMap, just takes
+/// information from the IndexMap which is needed for update.
+
 template <class T>
 class VectorUpdater
 {
 public:
-  VectorUpdater(dolfinx::la::Vector<T, CUDA::allocator<T>>& x) : cuda_block_size(512), data_type(dolfinx::MPI::mpi_type<T>())
+  /// Create an updater object, related to the indexmap of Vector x
+  /// @param x A dolfinx::la::Vector allocated on GPU with CUDA USM
+  VectorUpdater(dolfinx::la::Vector<T, CUDA::allocator<T>>& x)
+      : cuda_block_size(512), data_type(dolfinx::MPI::mpi_type<T>())
   {
     // Get the index map
     std::shared_ptr<const dolfinx::common::IndexMap> index_map = x.map();
-    
+
     LOG(INFO) << "Vector Updater";
     // Compute recv displacements and sizes
     displs_recv_fwd = index_map->scatter_fwd_receive_offsets();
@@ -53,8 +61,7 @@ public:
 
     // Allocate device buffers for send and receive
     d_send_buffer = std::make_unique<cuda::array<T>>(indices.size());
-    d_recv_buffer
-        = std::make_unique<cuda::array<T>>(displs_recv_fwd.back());
+    d_recv_buffer = std::make_unique<cuda::array<T>>(displs_recv_fwd.back());
 
     LOG(INFO) << "Get neighbourhood info";
     // Find my neighbors in forward communicator
@@ -68,8 +75,9 @@ public:
     std::vector<int> weights_recv(num_recv_neighbors);
     std::vector<int> weights_send(num_send_neighbors);
     MPI_Dist_graph_neighbors(fwd_comm, num_recv_neighbors,
-			     fwd_recv_neighbors.data(), weights_recv.data(),
-			     num_send_neighbors, fwd_send_neighbors.data(), weights_send.data());
+                             fwd_recv_neighbors.data(), weights_recv.data(),
+                             num_send_neighbors, fwd_send_neighbors.data(),
+                             weights_send.data());
 
     // Find my neighbors in reverse communicator
     rev_comm = index_map->comm(dolfinx::common::IndexMap::Direction::reverse);
@@ -80,11 +88,15 @@ public:
     rev_send_neighbors.resize(num_rev_send_neighbors);
     weights_recv.resize(num_rev_recv_neighbors);
     weights_send.resize(num_rev_send_neighbors);
-    MPI_Dist_graph_neighbors(
-			     rev_comm, num_rev_recv_neighbors, rev_recv_neighbors.data(),weights_recv.data(),
-			     num_rev_send_neighbors, rev_send_neighbors.data(), weights_send.data());
+    MPI_Dist_graph_neighbors(rev_comm, num_rev_recv_neighbors,
+                             rev_recv_neighbors.data(), weights_recv.data(),
+                             num_rev_send_neighbors, rev_send_neighbors.data(),
+                             weights_send.data());
   }
 
+  /// Do a forward scatter, sending locally owned values to the ghost region on
+  /// remote processes
+  /// @param x Vector to update
   void update_fwd(la::Vector<T, CUDA::allocator<T>>& x)
   {
     // Step 1: pack send buffer
@@ -103,19 +115,23 @@ public:
 
     for (std::size_t i = 0; i < req.size(); ++i)
     {
-      MPI_Send(d_send_buffer->data() + displs_send_fwd[i], sizes_send_fwd[i + 1],
-               data_type, fwd_send_neighbors[i], 0, fwd_comm);
+      MPI_Send(d_send_buffer->data() + displs_send_fwd[i],
+               sizes_send_fwd[i + 1], data_type, fwd_send_neighbors[i], 0,
+               fwd_comm);
     }
 
     MPI_Waitall(req.size(), req.data(), MPI_STATUSES_IGNORE);
 
     // Step 3: copy into ghost area
     xtl::span<T> x_remote(x.mutable_array().data() + x.map()->size_local(),
-                               x.map()->num_ghosts());
+                          x.map()->num_ghosts());
     gather(d_ghost_pos_recv_fwd->size(), d_ghost_pos_recv_fwd->data(),
            d_recv_buffer->data(), x_remote.data(), cuda_block_size);
   }
 
+  /// Do a reverse scatter, accumulating ghost values from remote processes into
+  /// owned values on the local process
+  /// @param x Vector to update
   void update_rev(la::Vector<T, CUDA::allocator<T>>& x)
   {
     // Scatter reverse (ghosts to owners -> many to one map)
@@ -124,13 +140,13 @@ public:
     // So swap send_buffer and recv_buffer from scatter_fwd
 
     // Step 1: pack send buffer
-    xtl::span<const T> x_remote_const(
-        x.array().data() + x.map()->size_local(), x.map()->num_ghosts());
+    xtl::span<const T> x_remote_const(x.array().data() + x.map()->size_local(),
+                                      x.map()->num_ghosts());
     gather(d_ghost_pos_recv_fwd->size(), d_ghost_pos_recv_fwd->data(),
-            x_remote_const.data(), d_recv_buffer->data(), cuda_block_size);
+           x_remote_const.data(), d_recv_buffer->data(), cuda_block_size);
 
     // Step 2: begin scatter
-    std::vector<MPI_Request> req(rev_recv_neighbors.size());   
+    std::vector<MPI_Request> req(rev_recv_neighbors.size());
     for (std::size_t i = 0; i < req.size(); ++i)
     {
       MPI_Irecv(d_send_buffer->data() + displs_send_fwd[i],
@@ -154,7 +170,7 @@ public:
   }
 
 private:
-
+  // Parameters and MPI comms
   int cuda_block_size;
   MPI_Datatype data_type;
   MPI_Comm fwd_comm, rev_comm;

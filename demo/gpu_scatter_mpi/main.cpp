@@ -1,10 +1,13 @@
+// Copyright (C) 2022 Chris Richardson and Athena Elafrou
+// SPDX-License-Identifier:    MIT
+
 #include <basix/e-lagrange.h>
 #include <boost/program_options.hpp>
 #include <cmath>
 #include <dolfinx.h>
-#include <dolfinx/io/XDMFFile.h>
-#include <dolfinx/common/log.h>
 #include <dolfinx/common/Timer.h>
+#include <dolfinx/common/log.h>
+#include <dolfinx/io/XDMFFile.h>
 #include <iostream>
 #include <memory>
 
@@ -49,7 +52,7 @@ int main(int argc, char* argv[])
 
   //  common::subsystem::init_logging(argc, argv);
   common::subsystem::init_mpi(argc, argv);
-  
+
   {
     // MPI
     MPI_Comm mpi_comm{MPI_COMM_WORLD};
@@ -67,7 +70,7 @@ int main(int argc, char* argv[])
     basix::FiniteElement e = basix::element::create_lagrange(
         mesh::cell_type_to_basix_type(mesh::CellType::hexahedron), degree,
         basix::element::lagrange_variant::equispaced, false);
-    
+
     // Create a scalar function space
     auto V = std::make_shared<fem::FunctionSpace>(
         fem::create_functionspace(mesh, e, 1));
@@ -80,7 +83,7 @@ int main(int argc, char* argv[])
 
     // Fill with rank values
     x.set((double)rank);
-    
+
     VectorUpdater vu(x);
 
     // Prefetch data to gpu
@@ -99,29 +102,29 @@ int main(int argc, char* argv[])
     const int size_local = x.map()->size_local();
     const int num_ghosts = x.map()->num_ghosts();
     for (int i = 0; i < num_ghosts; ++i)
-      assert ((int)w[size_local + i] == ghost_owner[i]);
+      assert((int)w[size_local + i] == ghost_owner[i]);
 
     // Fill up ghost region with ones and clear the rest.
     x.set(0.0);
     std::fill(x.mutable_array().data() + size_local,
-	      x.mutable_array().data() + size_local + num_ghosts, 1.0);
-    
+              x.mutable_array().data() + size_local + num_ghosts, 1.0);
+
     vu.update_rev(x);
 
-    double sum  = std::accumulate(x.array().data(),
-				  x.array().data() + size_local, 0.0);
+    double sum
+        = std::accumulate(x.array().data(), x.array().data() + size_local, 0.0);
 
     double gl_sum;
     MPI_Reduce(&sum, &gl_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     int gh_sum;
     MPI_Reduce(&num_ghosts, &gh_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
     if (rank == 0)
-      {
-	LOG(INFO) << "gh_sum and gl_sum should be the same";
-	LOG(INFO) << "gl_sum = " << gl_sum;
-	LOG(INFO) << "gh_sum = " << gh_sum;
-	assert (gl_sum == gh_sum);
-      }
+    {
+      LOG(INFO) << "gh_sum and gl_sum should be the same";
+      LOG(INFO) << "gl_sum = " << gl_sum;
+      LOG(INFO) << "gh_sum = " << gh_sum;
+      assert(gl_sum == gh_sum);
+    }
 
     // Now some timings
 
@@ -129,32 +132,31 @@ int main(int argc, char* argv[])
     LOG(INFO) << "CUDA MPI updates";
     {
       for (int i = 0; i < 10000; ++i)
-	vu.update_fwd(x);
+        vu.update_fwd(x);
     }
     tcuda.stop();
-    
+
     dolfinx::common::Timer tcpu("Fwd CPU-MPI");
     LOG(INFO) << "CPU MPI updates";
     {
       for (int i = 0; i < 10000; ++i)
-	x.scatter_fwd();
+        x.scatter_fwd();
     }
     tcpu.stop();
-
 
     dolfinx::common::Timer tcuda2("Rev CUDA-MPI");
     LOG(INFO) << "CUDA MPI rev updates";
     {
       for (int i = 0; i < 10000; ++i)
-	vu.update_rev(x);
+        vu.update_rev(x);
     }
     tcuda2.stop();
-    
+
     dolfinx::common::Timer tcpu2("Rev CPU-MPI");
     LOG(INFO) << "CPU MPI rev updates";
     {
       for (int i = 0; i < 10000; ++i)
-	x.scatter_rev(dolfinx::common::IndexMap::Mode::add);
+        x.scatter_rev(dolfinx::common::IndexMap::Mode::add);
     }
     tcpu2.stop();
 
@@ -163,7 +165,7 @@ int main(int argc, char* argv[])
   }
 
   dolfinx::list_timings(MPI_COMM_WORLD, {dolfinx::TimingType::wall});
-  
+
   common::subsystem::finalize_mpi();
   return 0;
 }
