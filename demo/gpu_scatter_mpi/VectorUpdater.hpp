@@ -2,6 +2,7 @@
 // MIT licence
 
 #include <dolfinx/common/log.h>
+#include <dolfinx/la/Vector.h>
 #include <iostream>
 #include <memory>
 
@@ -13,11 +14,15 @@
 
 using namespace dolfinx;
 
+template <class T>
 class VectorUpdater
 {
 public:
-  VectorUpdater(std::shared_ptr<const dolfinx::common::IndexMap> index_map) : cuda_block_size(512)
+  VectorUpdater(dolfinx::la::Vector<T, CUDA::allocator<T>>& x) : cuda_block_size(512), data_type(dolfinx::MPI::mpi_type<T>())
   {
+    // Get the index map
+    std::shared_ptr<const dolfinx::common::IndexMap> index_map = x.map();
+    
     LOG(INFO) << "Vector Updater";
     // Compute recv displacements and sizes
     displs_recv_fwd = index_map->scatter_fwd_receive_offsets();
@@ -47,9 +52,9 @@ public:
     d_ghost_pos_recv_fwd->set(ghost_pos_recv_fwd);
 
     // Allocate device buffers for send and receive
-    d_send_buffer = std::make_unique<cuda::array<double>>(indices.size());
+    d_send_buffer = std::make_unique<cuda::array<T>>(indices.size());
     d_recv_buffer
-        = std::make_unique<cuda::array<double>>(displs_recv_fwd.back());
+        = std::make_unique<cuda::array<T>>(displs_recv_fwd.back());
 
     LOG(INFO) << "Get neighbourhood info";
     // Find my neighbors in forward communicator
@@ -80,12 +85,10 @@ public:
 			     num_rev_send_neighbors, rev_send_neighbors.data(), weights_send.data());
   }
 
-  void update_fwd(la::Vector<double, CUDA::allocator<double>>& x)
+  void update_fwd(la::Vector<T, CUDA::allocator<T>>& x)
   {
-    MPI_Datatype data_type = dolfinx::MPI::mpi_type<double>();
-
     // Step 1: pack send buffer
-    xtl::span<const double> x_local_const = x.array();
+    xtl::span<const T> x_local_const = x.array();
     gather(d_indices->size(), d_indices->data(), x_local_const.data(),
            d_send_buffer->data(), cuda_block_size);
 
@@ -107,23 +110,21 @@ public:
     MPI_Waitall(req.size(), req.data(), MPI_STATUSES_IGNORE);
 
     // Step 3: copy into ghost area
-    xtl::span<double> x_remote(x.mutable_array().data() + x.map()->size_local(),
+    xtl::span<T> x_remote(x.mutable_array().data() + x.map()->size_local(),
                                x.map()->num_ghosts());
     gather(d_ghost_pos_recv_fwd->size(), d_ghost_pos_recv_fwd->data(),
            d_recv_buffer->data(), x_remote.data(), cuda_block_size);
   }
 
-  void update_rev(la::Vector<double, CUDA::allocator<double>>& x)
+  void update_rev(la::Vector<T, CUDA::allocator<T>>& x)
   {
-    MPI_Datatype data_type = dolfinx::MPI::mpi_type<double>();
-
     // Scatter reverse (ghosts to owners -> many to one map)
     // _buffer_recv_fwd is send_buffer
     // _buffer_send_fwd is recv_buffer
     // So swap send_buffer and recv_buffer from scatter_fwd
 
     // Step 1: pack send buffer
-    xtl::span<const double> x_remote_const(
+    xtl::span<const T> x_remote_const(
         x.array().data() + x.map()->size_local(), x.map()->num_ghosts());
     gather(d_ghost_pos_recv_fwd->size(), d_ghost_pos_recv_fwd->data(),
             x_remote_const.data(), d_recv_buffer->data(), cuda_block_size);
@@ -147,7 +148,7 @@ public:
     MPI_Waitall(req.size(), req.data(), MPI_STATUSES_IGNORE);
 
     // Step 3: copy/accumulate into owned part of the vector
-    xtl::span<double> x_local(x.mutable_array());
+    xtl::span<T> x_local(x.mutable_array());
     scatter(d_indices->size(), d_indices->data(), d_send_buffer->data(),
             x_local.data(), cuda_block_size);
   }
@@ -155,7 +156,7 @@ public:
 private:
 
   int cuda_block_size;
-
+  MPI_Datatype data_type;
   MPI_Comm fwd_comm, rev_comm;
 
   // Displacements and sizes
@@ -165,7 +166,7 @@ private:
   // On-device arrays for scatter/gather indices
   std::unique_ptr<cuda::array<std::int32_t>> d_ghost_pos_recv_fwd, d_indices;
   // On-device arrays for communicated data
-  std::unique_ptr<cuda::array<double>> d_send_buffer, d_recv_buffer;
+  std::unique_ptr<cuda::array<T>> d_send_buffer, d_recv_buffer;
 
   // Neighbor lists in both directions
   std::vector<int> fwd_recv_neighbors, fwd_send_neighbors;

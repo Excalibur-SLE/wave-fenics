@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
     // Fill with rank values
     x.set((double)rank);
     
-    VectorUpdater vu(x.map());
+    VectorUpdater vu(x);
 
     // Prefetch data to gpu
     linalg::prefetch(rank, x);
