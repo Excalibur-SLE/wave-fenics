@@ -12,7 +12,6 @@ module purge
 module load baskerville
 module load OpenMPI
 
-env
 let ntasks=$SLURM_NNODES*$SLURM_NTASKS_PER_NODE
 echo "Executing on: " $ntasks
 
