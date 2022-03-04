@@ -113,7 +113,7 @@ public:
                 fwd_comm, &(req[i]));
     }
 
-    for (std::size_t i = 0; i < req.size(); ++i)
+    for (std::size_t i = 0; i < fwd_send_neighbors.size(); ++i)
     {
       MPI_Send(d_send_buffer->data() + displs_send_fwd[i],
                sizes_send_fwd[i + 1], data_type, fwd_send_neighbors[i], 0,
@@ -154,7 +154,7 @@ public:
                 rev_comm, &(req[i]));
     }
 
-    for (std::size_t i = 0; i < req.size(); ++i)
+    for (std::size_t i = 0; i < rev_send_neighbors.size(); ++i)
     {
       MPI_Send(d_recv_buffer->data() + displs_recv_fwd[i],
                sizes_recv_fwd[i + 1], data_type, rev_send_neighbors[i], 0,

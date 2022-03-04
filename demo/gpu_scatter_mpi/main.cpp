@@ -61,7 +61,10 @@ int main(int argc, char* argv[])
     
     int gpu_rank = utils::set_device(local_comm);
     int mpi_rank = dolfinx::MPI::rank(mpi_comm);
+    std::string thread_name = "MPI: " + std::to_string(mpi_rank);
+    loguru::set_thread_name(thread_name.c_str());
     MPI_Datatype data_type = dolfinx::MPI::mpi_type<double>();
+    LOG(INFO) << "GPU rank=" << gpu_rank;
 
     // Read mesh and mesh tags
     std::array<std::array<double, 3>, 2> p
