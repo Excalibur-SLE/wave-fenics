@@ -57,8 +57,9 @@ int main(int argc, char* argv[])
     // MPI
     MPI_Comm mpi_comm{MPI_COMM_WORLD};
     MPI_Comm local_comm;
-    MPI_Comm_split_type(mpi_comm, MPI_COMM_TYPE_SHARED,0, MPI_INFO_NULL, &local_comm);
-    
+    MPI_Comm_split_type(mpi_comm, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL,
+                        &local_comm);
+
     int gpu_rank = utils::set_device(local_comm);
     int mpi_rank = dolfinx::MPI::rank(mpi_comm);
     std::string thread_name = "MPI: " + std::to_string(mpi_rank);
@@ -121,7 +122,6 @@ int main(int argc, char* argv[])
     // End profiling
     cudaProfilerStop();
 
-    
     double sum
         = std::accumulate(x.array().data(), x.array().data() + size_local, 0.0);
 
@@ -170,7 +170,6 @@ int main(int argc, char* argv[])
         x.scatter_rev(dolfinx::common::IndexMap::Mode::add);
     }
     tcpu2.stop();
-
   }
 
   dolfinx::list_timings(MPI_COMM_WORLD, {dolfinx::TimingType::wall});
