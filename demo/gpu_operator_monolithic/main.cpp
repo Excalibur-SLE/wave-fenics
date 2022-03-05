@@ -100,7 +100,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Number of cells: " << op.num_cells();
     std::cout << "\nNumber of dofs: " << op.num_dofs();
     std::cout << "\nNumber of quads: " << op.num_quads();
-    std::cout << "\n#FLOPs: " << op.flops();
+    std::cout << "\n#Elapsed Time: " << t;
     std::cout << "\nDOF/s: " << V->dofmap()->index_map->size_local() / t;
     std::cout << std::endl;
   }
