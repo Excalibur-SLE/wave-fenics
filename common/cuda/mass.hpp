@@ -78,7 +78,7 @@ public:
     T* _y = y.mutable_array().data();
     std::size_t Ne = _num_cells * _num_dofs;
     gather<T>(dofarray->size(), dofarray->data(), _x, xe->data(), 512);
-    mass_apply<T>(Ne, xe->data(), phi->data(), detJ->data(), ye->data(), _num_dofs, 512);
+    mass_apply<T>(Ne, xe->data(), phi->data(), detJ->data(), ye->data());
     scatter<T>(dofarray->size(), dofarray->data(), ye->data(), _y, 512);
   }
 

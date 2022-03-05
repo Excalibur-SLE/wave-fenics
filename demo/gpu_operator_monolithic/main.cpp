@@ -78,13 +78,12 @@ int main(int argc, char* argv[]) {
     fem::Function<double> u(V);
     // Interpolate sin(2 \pi x[0]) in the scalar Lagrange finite element space
     constexpr double PI = xt::numeric_constants<double>::PI;
-    u.interpolate([PI](auto&& x) { return xt::sin(2 * PI * xt::row(x, 0)); });
+    u.interpolate([PI](auto&& x) { return xt::ones_like(xt::row(x, 0)); });
 
     CUDA::allocator<double> allocator{};
     la::Vector<double, decltype(allocator)> x(idxmap, 1, allocator);
     la::Vector<double, decltype(allocator)> y(idxmap, 1, allocator);
-    auto uarray = u.x()->array();
-    std::copy(uarray.begin(), uarray.end(), x.mutable_array().begin());
+    std::fill(x.mutable_array().begin(), x.mutable_array().end(), 1);
 
     linalg::prefetch(0, x);
     linalg::prefetch(0, y);
@@ -96,8 +95,8 @@ int main(int argc, char* argv[]) {
     op.apply(x, y);
     t = MPI_Wtime() - t;
 
-    std::cout << y.norm() << std::endl;
-
+    std::cout << "X norm: " << x.norm() << std::endl;
+    std::cout << "Y norm: " << y.norm() << std::endl;
     std::cout << "Number of cells: " << op.num_cells();
     std::cout << "\nNumber of dofs: " << op.num_dofs();
     std::cout << "\nNumber of quads: " << op.num_quads();

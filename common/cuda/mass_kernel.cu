@@ -1,50 +1,69 @@
 #include "mass_kernel.hpp"
 #include <cstdint>
+#include <iostream>
+
+#define NDOFS 8
+#define NQUADS 8
+#define NUM_ELEMENTS 64
 
 template <typename T>
-static __global__ void _mass_apply(const T* xe, const T* phi, const T* detJ, T* ye,
-                                   int ndofs) {
-  int gid = blockIdx.x * blockDim.x + threadIdx.x;
-  __shared__ T _xq[512];
-  __shared__ T _phi[4096];
+static __global__ void _mass_apply(const T* xe, const T* phi, const T* detJ, T* ye) {
+  int element = blockIdx.y * blockDim.y + threadIdx.y;
 
-  for (int i = threadIdx.x; i < 4096; i += blockDim.x)
-    _phi[i] = phi[i];
+  // Allocate shared memory
+  __shared__ T _xe[NUM_ELEMENTS][NDOFS];
+  __shared__ T _xq[NUM_ELEMENTS][NQUADS];
+  __shared__ T _phi[NQUADS][NQUADS];
+
+  // Prepare basis functions (load to shared memory)
+  // Load Phi^T to shared memory
+  for (int i = threadIdx.y; i < NQUADS; i += blockDim.y)
+    for (int j = threadIdx.x; j < NDOFS; j += blockDim.x)
+      _phi[j][i] = phi[i * NDOFS + j];
+
+  if (threadIdx.x < NDOFS)
+    _xe[threadIdx.y][blockIdx.x] = xe[element * NDOFS + threadIdx.x];
+
   __syncthreads();
 
-  int dof_id = threadIdx.x % ndofs;
-  int element_id = threadIdx.x / ndofs;
-  const T* _x = xe + blockIdx.x * blockDim.x + element_id * ndofs;
+  // Evaluate coefficients at quadrature points
+  T wq = 0;
+  if (threadIdx.x < NQUADS) {
+    for (int i = 0; i < NDOFS; i++)
+      wq += _xe[threadIdx.y][i] * _phi[i][threadIdx.x];
 
-  T result = 0;
-  for (int i = 0; i < ndofs; i++) {
-    result += _x[i] * _phi[dof_id * ndofs + i];
+    _xq[threadIdx.y][threadIdx.x] = detJ[element * NQUADS + threadIdx.x] * wq;
   }
-
-  _xq[threadIdx.x] = result * detJ[blockIdx.x * blockDim.x + threadIdx.x];
   __syncthreads();
 
-  result = 0;
-  for (int i = 0; i < ndofs; i++) {
-    result += _xq[element_id + i] * _phi[dof_id * ndofs + i];
+  // Prepare basis functions (load to shared memory)
+  // Load Phi to shared memory
+  for (int i = threadIdx.y; i < NQUADS; i += blockDim.y)
+    for (int j = threadIdx.x; j < NDOFS; j += blockDim.x)
+      _phi[i][j] = phi[i * NDOFS + j];
+
+  if (threadIdx.x < NDOFS) {
+    T yi = 0;
+    for (int i = 0; i < NQUADS; i++) {
+      yi += _xq[threadIdx.y][i] * _phi[i][threadIdx.x];
+    }
+    ye[element * NDOFS + threadIdx.x] = yi;
   }
-  ye[gid] = result;
 }
 
 template <typename T>
-void mass_apply(int Ne, const T* xe, const T* phi, const T* detJ, T* ye, int ndofs,
-                int block_size) {
+void mass_apply(int Ne, const T* xe, const T* phi, const T* detJ, T* ye) {
+  int block_size = 512;
   const int num_blocks = (Ne + block_size - 1) / block_size;
-  dim3 dimBlock(block_size);
-  dim3 dimGrid(num_blocks);
-  _mass_apply<<<dimGrid, dimBlock>>>(xe, phi, detJ, ye, ndofs);
+  dim3 dimBlock(8, 64);
+  dim3 dimGrid(1, num_blocks);
+  _mass_apply<<<dimGrid, dimBlock>>>(xe, phi, detJ, ye);
   cudaDeviceSynchronize();
 }
 
 //-----------------------------------------------------------------------------
 template void mass_apply<double>(int Ne, const double* xe, const double* phi,
-                                 const double* detJ, double* ye, int ndofs,
-                                 int block_size);
+                                 const double* detJ, double* ye);
 template void mass_apply<float>(int Ne, const float* xe, const float* phi,
-                                const float* detJ, float* ye, int ndofs, int block_size);
+                                const float* detJ, float* ye);
 //-----------------------------------------------------------------------------
