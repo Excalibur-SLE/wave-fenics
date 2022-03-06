@@ -54,6 +54,7 @@ public:
     auto quad_type = basix::quadrature::type::gll;
     auto [points, weights]
         = basix::quadrature::make_quadrature(quad_type, cell_type, qdegree[bdegree]);
+    _num_quads = weights.size();
 
     // Get the determinant of the Jacobian
     xt::xtensor<double, 4> J = compute_jacobian(mesh, points);
@@ -80,17 +81,13 @@ public:
   std::size_t num_dofs() const { return _num_dofs; }
   double flops() const { return 4 * _num_cells * _num_quads * _num_dofs; };
 
-  template <typename Alloc>
-  void operator()(const la::Vector<T, Alloc>& x, la::Vector<T, Alloc>& y) {
-    // gather operator
+  /// Compute y = Ax for diagonal mass matrix A
+  template <typename Vector>
+  void apply(const Vector& x, Vector& y) {
+
     gather(perm_dofmap->size(), perm_dofmap->data(), x.array().data(), xe->data(), 512);
-
-    // transform operator
     transform1(perm_dofmap->size(), xe->data(), detJ->data(), xe->data(), 512);
-
-    // scatter operator
-    scatter(perm_dofmap->size(), perm_dofmap->data(), xe->data(),
-            y.mutable_array().data(), 512);
+    scatter(perm_dofmap->size(), perm_dofmap->data(), xe->data(), y.mutable_array().data(), 512);
   }
 
 private:
