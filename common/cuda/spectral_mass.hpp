@@ -5,7 +5,6 @@
 
 #include "permute.hpp"
 #include "precompute.hpp"
-#include "transform.hpp"
 
 #include <vector>
 
@@ -13,7 +12,6 @@
 #include <basix/quadrature.h>
 
 // Helper functions
-#include <cuda/allocator.hpp>
 #include <cuda/array.hpp>
 #include <cuda/scatter.hpp>
 #include <cuda/transform.hpp>
@@ -26,10 +24,10 @@ template <typename T>
 class SpectralMassOperator {
 public:
   SpectralMassOperator(std::shared_ptr<fem::FunctionSpace>& V, int bdegree) {
-    std::shared_ptr<const mesh::Mesh> mesh = V->mesh();
 
     dolfinx::common::Timer t0("~setup phase");
 
+    std::shared_ptr<const mesh::Mesh> mesh = V->mesh();
     int tdim = mesh->topology().dim();
     _num_cells = mesh->topology().index_map(tdim)->size_local();
     _num_dofs = (bdegree + 1) * (bdegree + 1) * (bdegree + 1);
@@ -85,9 +83,9 @@ public:
   template <typename Vector>
   void apply(const Vector& x, Vector& y) {
 
-    gather(perm_dofmap->size(), perm_dofmap->data(), x.array().data(), xe->data(), 512);
-    transform1(perm_dofmap->size(), xe->data(), detJ->data(), xe->data(), 512);
-    scatter(perm_dofmap->size(), perm_dofmap->data(), xe->data(), y.mutable_array().data(), 512);
+    gather<T>(perm_dofmap->size(), perm_dofmap->data(), x.array().data(), xe->data(), 512);
+    transform1<T>(perm_dofmap->size(), xe->data(), detJ->data(), xe->data(), 512);
+    scatter<T>(perm_dofmap->size(), perm_dofmap->data(), xe->data(), y.mutable_array().data(), 512);
   }
 
 private:
