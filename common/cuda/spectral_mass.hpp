@@ -82,8 +82,6 @@ public:
 
   template <typename Alloc>
   void operator()(const la::Vector<T, Alloc>& x, la::Vector<T, Alloc>& y) {
-    std::cout << "Operates!!!" << std::endl;
-
     // gather operator
     gather(perm_dofmap->size(), perm_dofmap->data(), x.array().data(), xe->data(), 512);
 
@@ -93,8 +91,6 @@ public:
     // scatter operator
     scatter(perm_dofmap->size(), perm_dofmap->data(), xe->data(),
             y.mutable_array().data(), 512);
-
-    std::cout << "Complete!!!" << std::endl;
   }
 
 private:
