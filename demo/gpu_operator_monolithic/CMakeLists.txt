@@ -15,7 +15,7 @@ find_package(CUDA 11.0 REQUIRED)
 find_package(Boost 1.70 REQUIRED program_options)
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../../common" ".")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3 --use_fast_math")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3 -lineinfo --use_fast_math")
 
 # Executable
 set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../common/cuda)

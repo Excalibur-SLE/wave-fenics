@@ -38,3 +38,4 @@
 # Compiled forms
 forms.c
 forms.h
+results/
