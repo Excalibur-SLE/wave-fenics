@@ -21,7 +21,7 @@ static __global__ void _mass_apply(std::int32_t num_elements, const T* xe, const
     // Load Phi^T to shared memory
     for (int i = threadIdx.y; i < NQUADS; i += blockDim.y)
       for (int j = threadIdx.x; j < NDOFS; j += blockDim.x)
-        _phi[i][j] = phi[i * NDOFS + j];
+        _phi[j][i] = phi[i * NDOFS + j];
 
     _xe[threadIdx.y][threadIdx.x] = xe[dof_id];
     __syncthreads();
@@ -30,10 +30,18 @@ static __global__ void _mass_apply(std::int32_t num_elements, const T* xe, const
     for (int q = threadIdx.x; q < NQUADS; q += blockDim.x) {
       T wq = 0;
       for (int j = 0; j < NDOFS; j++)
-        wq += _xe[threadIdx.y][j] * _phi[q][j];
+        wq += _xe[threadIdx.y][j] * _phi[j][q];
 
       _xq[threadIdx.y][q] = detJ[element * NQUADS + q] * wq;
     }
+
+    __syncthreads();
+    
+    // Prepare basis functions (load to shared memory)
+    // Load Phi^T to shared memory
+    for (int i = threadIdx.y; i < NQUADS; i += blockDim.y)
+      for (int j = threadIdx.x; j < NDOFS; j += blockDim.x)
+        _phi[i][j] = phi[i * NDOFS + j];
 
     __syncthreads();
 
