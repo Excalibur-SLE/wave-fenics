@@ -23,7 +23,7 @@ set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../common/cuda)
 add_executable(${PROJECT_NAME} main.cpp ${SOURCE_DIR}/scatter.cu)
 
 # Target libraries
-target_link_libraries(${PROJECT_NAME} dolfinx CUDA::cudart CUDA::cublas Boost::program_options)
+target_link_libraries(${PROJECT_NAME} dolfinx CUDA::cudart CUDA::cublas Boost::program_options nvToolsExt)
 target_include_directories(${PROJECT_NAME} PUBLIC SYSTEM ${CUDA_INCLUDE_DIRS})
 
 # Custom compilation flags

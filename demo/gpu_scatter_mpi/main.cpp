@@ -12,6 +12,7 @@
 #include <memory>
 
 #include <cuda_profiler_api.h>
+#include <nvToolsExt.h>
 
 // Helper functions
 #include <cuda/allocator.hpp>
@@ -83,6 +84,10 @@ int main(int argc, char* argv[])
         fem::create_functionspace(mesh, e, 1));
     auto idxmap = V->dofmap()->index_map;
 
+
+    // Start profiling
+    cudaProfilerStart();
+
     // Assemble RHS vector
     LOG(INFO) << "Allocate vector";
     CUDA::allocator<double> allocator{};
@@ -93,49 +98,33 @@ int main(int argc, char* argv[])
 
     VectorUpdater vu(x);
 
+    nvtxMarkA("prefetch");
     // Prefetch data to gpu
     linalg::prefetch(gpu_rank, x);
 
-    // Start profiling
-    cudaProfilerStart();
+    nvtxMarkA("update_fwd");
+    for (int i = 0; i < 50; ++i)
+      vu.update_fwd(x);
 
-    vu.update_fwd(x);
+    nvtxMarkA("scatter_fwd");
+    for (int i = 0; i < 50; ++i)
+      x.scatter_fwd();
 
-    // Ghost region should fill up with external ranks with float values
-    // the same as ghost_owner_rank in the index_map.
+    nvtxMarkA("update_rev");
+    for (int i = 0; i < 50; ++i)
+      vu.update_rev(x);
 
-    auto ghost_owner = x.map()->ghost_owner_rank();
-    auto w = x.array();
-    const int size_local = x.map()->size_local();
-    const int num_ghosts = x.map()->num_ghosts();
-    for (int i = 0; i < num_ghosts; ++i)
-      assert((int)w[size_local + i] == ghost_owner[i]);
+    nvtxMarkA("scatter_rev");
+    for (int i = 0; i < 50; ++i)
+      x.scatter_rev(dolfinx::common::IndexMap::Mode::add);
 
-    // Fill up ghost region with ones and clear the rest.
-    x.set(0.0);
-    std::fill(x.mutable_array().data() + size_local,
-              x.mutable_array().data() + size_local + num_ghosts, 1.0);
-
-    vu.update_rev(x);
-
+    nvtxMarkA("end");
     // End profiling
     cudaProfilerStop();
 
-    double sum
-        = std::accumulate(x.array().data(), x.array().data() + size_local, 0.0);
-
-    double gl_sum;
-    MPI_Reduce(&sum, &gl_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-    int gh_sum;
-    MPI_Reduce(&num_ghosts, &gh_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-    if (mpi_rank == 0)
-    {
-      LOG(INFO) << "gh_sum and gl_sum should be the same";
-      LOG(INFO) << "gl_sum = " << gl_sum;
-      LOG(INFO) << "gh_sum = " << gh_sum;
-      assert(gl_sum == gh_sum);
-    }
-
+    common::subsystem::finalize_mpi();
+    return 0;
+    
     // Now some timings
 
     dolfinx::common::Timer tcuda("Fwd CUDA-MPI");

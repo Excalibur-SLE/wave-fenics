@@ -15,5 +15,5 @@ module load OpenMPI
 let ntasks=$SLURM_NNODES*$SLURM_NTASKS_PER_NODE
 echo "Executing on: " $ntasks
 
-mpirun -n $ntasks ./planar3d --size=100 --degree=4
-
+# mpirun -n $ntasks ./planar3d --size=100 --degree=4
+nsys profile --capture-range=cudaProfilerApi --trace=cuda,mpi mpirun -n $ntasks ./planar3d --size=100 --degree=4
