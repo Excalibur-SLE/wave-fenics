@@ -12,6 +12,7 @@ module purge
 module load baskerville
 module load OpenMPI
 
-nsys profile --trace=cuda,mpi mpirun -n 4 ./planar3d --size=100 --degree=4
+nsys profile --capture-range=cudaProfilerApi --trace=cuda,mpi mpirun -n 4 ./planar3d --size=100 --degree=4
 
+# mpirun -n 4 ./planar3d --size=50 --degree=4
 
