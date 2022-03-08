@@ -6,47 +6,43 @@
 template <typename T>
 static __global__ void _mass_apply(std::int32_t num_elements, const T* xe, const T* phi,
                                    const T* detJ, T* ye) {
-  int id = blockIdx.x * NDOFS + threadIdx.x;
-  T _phi[NDOFS];
-  __shared__ T _xe[32];
-  __shared__ T _xq[32];
+
+  __shared__ T _phi[NDOFS][NDOFS];
+  __shared__ T _xe[NDOFS];
+  __shared__ T _xq[NDOFS];
 
   if (threadIdx.x < NDOFS) {
-    _xe[threadIdx.x] = xe[id];
+#pragma unroll
+    for (int j = 0; j < NDOFS; j++) {
+      _phi[j][threadIdx.x] = phi[threadIdx.x * NDOFS + j];
+    }
 
-    // Prepare basis functions (load to shared memory)
-    // Load Phi^T to shared memory
-    for (int j = 0; j < NDOFS; j++)
-      _phi[j] = phi[threadIdx.x * NDOFS + j];
+    for (int block = blockIdx.x; block < num_elements; block += gridDim.x) {
+      int id = block * NDOFS + threadIdx.x;
+      _xe[threadIdx.x] = xe[id];
 
-    __syncthreads();
+      // Evaluate coefficients at quadrature points
+      T wq = 0.;
+#pragma unroll
+      for (int j = 0; j < NDOFS; j++)
+        wq += _xe[j] * _phi[j][threadIdx.x];
 
-    // Evaluate coefficients at quadrature points
-    T wq = 0.;
-    for (int j = 0; j < NDOFS; j++)
-      wq += _xe[j] * _phi[j];
+      _xq[threadIdx.x] = detJ[id] * wq;
 
-    _xq[threadIdx.x] = detJ[id] * wq;
+      T yi = 0;
+#pragma unroll
+      for (int iq = 0; iq < NDOFS; iq++)
+        yi += _xq[iq] * _phi[threadIdx.x][iq];
 
-    // Prepare basis functions (load to shared memory)
-    // Load Phi^T to shared memory
-    for (int j = 0; j < NDOFS; j++)
-      _phi[j] = phi[j * NDOFS + threadIdx.x];
-
-    __syncthreads();
-
-    T yi = 0;
-    for (int iq = 0; iq < NDOFS; iq++)
-      yi += _xq[iq] * _phi[iq];
-
-    ye[id] = yi;
+      ye[id] = yi;
+    }
   }
 }
 
 template <typename T>
 void mass_apply(int num_elements, const T* xe, const T* phi, const T* detJ, T* ye) {
   int block_size = 32;
-  const int num_blocks = num_elements;
+  const int num_blocks = num_elements / 8;
   dim3 dimBlock(block_size);
   dim3 dimGrid(num_blocks);
   _mass_apply<<<dimGrid, dimBlock>>>(num_elements, xe, phi, detJ, ye);
