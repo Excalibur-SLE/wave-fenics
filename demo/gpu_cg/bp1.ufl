@@ -1,0 +1,27 @@
+from ufl import *
+
+# Load namespace
+ns = vars()
+
+forms = []
+for p in range(1, 6):
+    element = FiniteElement("Lagrange", hexahedron, p)
+    mesh = Mesh(VectorElement("Lagrange", hexahedron, 1))
+
+    V = FunctionSpace(mesh, element)
+    u = TrialFunction(V)
+    v = TestFunction(V)
+    f = Coefficient(V)
+
+    aname = 'a' + str(p)
+    Lname = 'L' + str(p)
+    
+    # Insert into namespace so that the forms will be named a1, a2, a3 etc.
+    ns[aname] = inner(u, v) * dx(degree=p+2)
+    ns[Lname] = inner(f, v) * dx(degree=p+2)
+
+    # Delete, so that the forms will get unnamed args and coefficients
+    # and default to v_0, v_1, w0, w1 etc.
+    del u, v, f
+
+    forms += [ns[aname], ns[Lname]]
