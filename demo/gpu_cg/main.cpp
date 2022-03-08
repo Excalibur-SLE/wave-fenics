@@ -16,7 +16,7 @@ template <typename T, typename Alloc = std::allocator<T>>
 using apply_fn = std::function<void(const la::Vector<T, Alloc>&, la::Vector<T, Alloc>&)>;
 
 int main(int argc, char* argv[]) {
-  common::subsystem::init_logging(argc, argv);
+  // common::subsystem::init_logging(argc, argv);
   common::subsystem::init_mpi(argc, argv);
 
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
@@ -26,6 +26,8 @@ int main(int argc, char* argv[]) {
   
   auto [s, type, p, format, queue_type] = read_inputs(argc, argv);
 
+  LOG(INFO) << "s= " << s;
+  LOG(INFO) << "p= " << p;
 
   std::vector function_space
       = {functionspace_form_bp1_a1, functionspace_form_bp1_a2, functionspace_form_bp1_a3,
@@ -38,12 +40,15 @@ int main(int argc, char* argv[]) {
     int bs = 1;
 
     // Create Hex mesh -  E = 2^s
+    LOG(INFO) << "Create mesh";
     auto mesh = std::make_shared<mesh::Mesh>(benchmark::create_hex_mesh(mpi_comm, s));
 
+    LOG(INFO) << "Create FunctionSpace";
     // Create Function Space
     auto V = std::make_shared<fem::FunctionSpace>(
         fem::create_functionspace(*function_space.at(p - 1), "v_0", mesh));
 
+    LOG(INFO) << "RHS";
     // Create RHS arbitrary coefficient f
     auto f = std::make_shared<fem::Function<double>>(V);
     f->interpolate([](auto& x) { return xt::row(x, 0) + 4; });
@@ -58,7 +63,9 @@ int main(int argc, char* argv[]) {
     CUDA::allocator<double> allocator{};
     la::Vector<double, decltype(allocator)> bvec(V->dofmap()->index_map, bs, allocator);
     la::Vector<double, decltype(allocator)> uvec(V->dofmap()->index_map, bs, allocator);
+    LOG(INFO) << "Assemble vector";
     fem::assemble_vector(bvec.mutable_array(), *L);
+    LOG(INFO) << "Reverse scatter";
     bvec.scatter_rev(common::IndexMap::Mode::add);
 
     
@@ -73,15 +80,20 @@ int main(int argc, char* argv[]) {
                                "number of available devices.");
     }
 
+    LOG(INFO) << "Setting device to " << mpi_rank;
+    cudaSetDevice(mpi_rank);
+
+    LOG(INFO) << "Create CUBLAS handle";
     cublasHandle_t handle;
     cublasCreate(&handle);
-    cudaSetDevice(mpi_rank);
+
 
     std::function<void(const la::Vector<double, CUDA::allocator<double>>&,
 		       la::Vector<double, CUDA::allocator<double>>&)> matvec = [&](auto a, auto b){
+			 LOG(INFO) << "matvec function";
 			 copy<la::Vector<double, CUDA::allocator<double>>>(handle, a, b);};
 
-    
+    LOG(INFO) << "CG";
     int number_it = device::cg(handle, uvec, bvec, matvec, 50, 1e-4);
     std::cout << "its = " << number_it << "\n";
     

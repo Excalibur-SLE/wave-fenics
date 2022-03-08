@@ -1,3 +1,4 @@
+#include <dolfinx/common/log.h>
 #include "utils.hpp"
 #include "cublas_v2.h"
 #include <cuda_runtime.h>
@@ -105,6 +106,7 @@ auto squared_norm(cublasHandle_t handle, const Vector& x) {
   using T = typename Vector::value_type;
   const T* _x = x.array().data();
   std::size_t n = x.map()->size_local();
+  LOG(INFO) << "sqnorm - n=" << n;
   cublasStatus_t status;
   T result = 0;
   if constexpr (std::is_same<T, double>())
@@ -113,6 +115,7 @@ auto squared_norm(cublasHandle_t handle, const Vector& x) {
     status = cublasSnrm2(handle, n, _x, 1, &result);
   else
     static_assert(dependent_false<T>::value);
+  LOG(INFO) << "status = " << status;
   assert_cuda(status);
   return result;
 }
