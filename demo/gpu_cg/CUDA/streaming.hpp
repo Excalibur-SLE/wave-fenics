@@ -1,6 +1,5 @@
-
-#pragma once
-#include "cuda/utils.hpp"
+#include <dolfinx/common/log.h>
+#include "utils.hpp"
 #include "cublas_v2.h"
 #include <cuda_runtime.h>
 #include <type_traits>
@@ -16,7 +15,7 @@ void assert_cuda(C e) {
 }
 } // namespace
 
-namespace linalg {
+namespace linalg::CUDA {
 /*******************************************/
 /* Vector operations using CUDA and CUBLAS */
 /*******************************************/
@@ -93,9 +92,9 @@ auto inner_product(cublasHandle_t handle, const Vector& x, const Vector& y) {
   cublasStatus_t status;
   T result = 0;
   if constexpr (std::is_same<T, double>())
-    cublasDdot(handle, n, _x, 1, _y, 1, &result);
+    status = cublasDdot(handle, n, _x, 1, _y, 1, &result);
   else if constexpr (std::is_same<T, float>())
-    cublasSdot(handle, n, _x, 1, _y, 1, &result);
+    status = cublasSdot(handle, n, _x, 1, _y, 1, &result);
   else
     static_assert(dependent_false<T>::value);
   assert_cuda(status);
@@ -107,14 +106,16 @@ auto squared_norm(cublasHandle_t handle, const Vector& x) {
   using T = typename Vector::value_type;
   const T* _x = x.array().data();
   std::size_t n = x.map()->size_local();
+  LOG(INFO) << "sqnorm - n=" << n;
   cublasStatus_t status;
   T result = 0;
   if constexpr (std::is_same<T, double>())
-    cublasDnrm2(handle, n, _x, 1, &result);
+    status = cublasDnrm2(handle, n, _x, 1, &result);
   else if constexpr (std::is_same<T, float>())
-    cublasSnrm2(handle, n, _x, 1, &result);
+    status = cublasSnrm2(handle, n, _x, 1, &result);
   else
     static_assert(dependent_false<T>::value);
+  LOG(INFO) << "status = " << status;
   assert_cuda(status);
   return result;
 }
@@ -122,18 +123,18 @@ auto squared_norm(cublasHandle_t handle, const Vector& x) {
 template <typename Scalar, typename Vector>
 void scale(cublasHandle_t handle, Scalar alpha, Vector& x) {
   using T = typename Vector::value_type;
-  const T* _x = x.mutable_array().data();
+  T* _x = x.mutable_array().data();
   std::size_t n = x.map()->size_local();
 
   T _alpha = static_cast<T>(alpha);
   cublasStatus_t status;
 
   if constexpr (std::is_same<T, double>())
-    cublasDscal(handle, n, &_alpha, _x, 1);
+    status = cublasDscal(handle, n, &_alpha, _x, 1);
   else if constexpr (std::is_same<T, float>())
-    cublasSscal(handle, n, &_alpha, _x, 1);
+    status = cublasSscal(handle, n, &_alpha, _x, 1);
   else
     static_assert(dependent_false<T>::value);
   assert_cuda(status);
 }
-} // namespace linalg
+} // namespace linalg::CUDA

@@ -72,4 +72,3 @@ template void scatter<double>(std::int32_t, const std::int32_t*, const double*, 
 template void scatter<float>(std::int32_t, const std::int32_t*, const float*, float*,
                              int);
 //-----------------------------------------------------------------------------
-
