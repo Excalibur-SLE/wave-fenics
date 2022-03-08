@@ -23,7 +23,7 @@ add_custom_command(
   DEPENDS ${PROJECT_NAME}.ufl
 )
 
-add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.c CUDA/scatter.cu)
+add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.c CUDA/scatter.cu CUDA/mass_kernel.cu)
 
 include_directories("../../../src")
 target_link_libraries(${PROJECT_NAME} PRIVATE CUDA::cudart CUDA::cublas dolfinx Boost::program_options)
