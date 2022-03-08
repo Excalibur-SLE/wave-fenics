@@ -6,7 +6,7 @@
 template <typename T>
 static __global__ void _mass_apply(std::int32_t num_elements, const T* xe, const T* phi,
                                    const T* detJ, T* ye) {
-  int id = blockIdx.x * blockDim.x + threadIdx.x;
+  int id = blockIdx.x * NDOFS + threadIdx.x;
   T _phi[NDOFS];
   __shared__ T _xe[32];
   __shared__ T _xq[32];
@@ -23,26 +23,26 @@ static __global__ void _mass_apply(std::int32_t num_elements, const T* xe, const
   __syncthreads();
 
   // Evaluate coefficients at quadrature points
-  T wq = 0;
-  for (int j = 0; j < NDOFS; j++)
-    wq += _xe[j] * _phi[j];
-
   if (threadIdx.x < NDOFS) {
+    T wq = 0.;
+    for (int j = 0; j < NDOFS; j++)
+      wq += _xe[j] * _phi[j];
+
     _xq[threadIdx.x] = detJ[id] * wq;
 
     // Prepare basis functions (load to shared memory)
     // Load Phi^T to shared memory
     for (int j = 0; j < NDOFS; j++)
       _phi[j] = phi[j * NDOFS + threadIdx.x];
+
+    __syncthreads();
+
+    T yi = 0;
+    for (int iq = 0; iq < NDOFS; iq++)
+      yi += _xq[iq] * _phi[iq];
+
+    ye[id] = yi;
   }
-
-  __syncthreads();
-
-  T yi = 0;
-  for (int iq = 0; iq < NDOFS; iq++)
-    yi += _xq[iq] * _phi[iq];
-
-  ye[id] = yi;
 }
 
 template <typename T>
