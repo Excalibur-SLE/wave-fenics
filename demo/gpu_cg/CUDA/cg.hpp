@@ -48,23 +48,18 @@ int cg(cublasHandle_t handle, la::Vector<T, Alloc>& x, const la::Vector<T, Alloc
   Alloc allocator;
 
   // Allocate auxiliary vectors
-  LOG(INFO) << "Allocate vectors";
   la::Vector<T, Alloc> r(b.map(), b.bs(), allocator);
   la::Vector<T, Alloc> y(b.map(), b.bs(), allocator);
   la::Vector<T, Alloc> p(b.map(), b.bs(), allocator);
 
-  LOG(INFO) << "Call copy";
   copy<la::Vector<T, Alloc>>(handle, b, p);
   copy<la::Vector<T, Alloc>>(handle, b, r);
   //   cudaMemAdvise()
 
-  LOG(INFO) << "Sq norm";
   T rnorm0_local = squared_norm<la::Vector<T, Alloc>>(handle, r);
 
-  LOG(INFO) << "reduce";
   T rnorm0  = mpi_reduce<T>(comm, rnorm0_local);
 
-  LOG(INFO) << "Vector updater";
   VectorUpdater<double, CUDA::allocator<double>> vu(p);
   
   // Iterations of CG
@@ -75,17 +70,13 @@ int cg(cublasHandle_t handle, la::Vector<T, Alloc>& x, const la::Vector<T, Alloc
     ++k;
 
     // Update ghosts before MatVec
-    LOG(INFO) << "Update forward";
     // p.scatter_fwd();
     vu.update_fwd(p);
   
 
     // MatVec
     // y = A.p;
-    LOG(INFO) << "Update forward";
     matvec_function(p, y);
-
-    LOG(INFO) << "Inner product";
 
     // Calculate alpha = r.r/p.y
     T pdoty_local = inner_product<la::Vector<T, Alloc>>(handle, p, y);
