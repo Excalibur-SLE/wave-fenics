@@ -18,12 +18,10 @@ static __global__ void _mass_apply(std::int32_t num_elements, const T* xe, const
     // Load Phi^T to shared memory
     for (int j = 0; j < NDOFS; j++)
       _phi[j] = phi[threadIdx.x * NDOFS + j];
-  }
 
-  __syncthreads();
+    __syncthreads();
 
-  // Evaluate coefficients at quadrature points
-  if (threadIdx.x < NDOFS) {
+    // Evaluate coefficients at quadrature points
     T wq = 0.;
     for (int j = 0; j < NDOFS; j++)
       wq += _xe[j] * _phi[j];
