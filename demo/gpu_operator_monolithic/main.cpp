@@ -92,7 +92,7 @@ int main(int argc, char* argv[]) {
     linalg::prefetch(0, y);
 
     auto quad = basix::quadrature::type::gll;
-    MassOperator<double> op(V, e, quad, 3);
+    MassOperator<double> op(V, e, quad, degree+1);
 
     double t = MPI_Wtime();
     op.apply(x, y);
@@ -102,7 +102,7 @@ int main(int argc, char* argv[]) {
       la::Vector<double> x(idxmap, 1);
       la::Vector<double> y1(idxmap, 1);
       std::fill(x.mutable_array().begin(), x.mutable_array().end(), 1);
-      MassOperatorCPU<double> cpu_op(V, 2);
+      MassOperatorCPU<double> cpu_op(V, degree);
       double t = MPI_Wtime();
       cpu_op(x, y1);
       t = MPI_Wtime() - t;

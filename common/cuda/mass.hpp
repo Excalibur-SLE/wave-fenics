@@ -77,7 +77,20 @@ public:
     const T* _x = x.array().data();
     T* _y = y.mutable_array().data();
     gather<T>(dofarray->size(), dofarray->data(), _x, xe->data(), 512);
-    mass_apply<T>(_num_cells, xe->data(), phi->data(), detJ->data(), ye->data());
+    switch (_num_dofs)
+    {
+    case 8:
+      mass_apply<T, 8>(_num_cells, xe->data(), phi->data(), detJ->data(), ye->data());
+      break;
+    case 27:
+      mass_apply<T, 27>(_num_cells, xe->data(), phi->data(), detJ->data(), ye->data());
+      break;
+    case 64:
+      mass_apply<T, 64>(_num_cells, xe->data(), phi->data(), detJ->data(), ye->data());
+      break;
+    default:
+      throw std::runtime_error("Not implemented");
+    }
     scatter<T>(dofarray->size(), dofarray->data(), ye->data(), _y, 512);
   }
 
