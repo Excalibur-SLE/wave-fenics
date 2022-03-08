@@ -1,5 +1,6 @@
 #include "bp1.h"
-
+#include <basix/e-lagrange.h>
+#include <basix/quadrature.h>
 #include "CUDA/allocator.hpp"
 #include "CUDA/cg.hpp"
 #include "mesh.hpp"
@@ -87,10 +88,19 @@ int main(int argc, char* argv[]) {
     VectorUpdater vu(bvec);
     vu.update_rev(bvec);    
 
+
+      // Create a Basix continuous Lagrange element of given degree
+    basix::FiniteElement e = basix::element::create_lagrange(
+        mesh::cell_type_to_basix_type(mesh::CellType::hexahedron), 2,
+        basix::element::lagrange_variant::gll_warped, false);
+
+    auto quad = basix::quadrature::type::gll;
+    MassOperator<double> op(V, e, quad, 3);
+
     std::function<void(const la::Vector<double, CUDA::allocator<double>>&,
 		       la::Vector<double, CUDA::allocator<double>>&)> matvec = [&](auto a, auto b){
 			 LOG(INFO) << "matvec function";
-			 copy<la::Vector<double, CUDA::allocator<double>>>(handle, a, b);};
+			 op.apply(a,b);};
 
     int number_it = device::cg(handle, uvec, bvec, matvec, 50, 1e-4);
     std::cout << "its = " << number_it << "\n";
