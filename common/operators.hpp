@@ -41,7 +41,7 @@ namespace {
 } // namespace
 
 template <typename T>
-class MassOperator {
+class MassOperatorCPU {
   private:
     std::vector<T> _x, _y;
     std::int32_t _ncells, _ndofs;
@@ -50,7 +50,7 @@ class MassOperator {
     xt::xtensor<double, 2> _detJ, _phi;
     std::vector<int> _perm;
   public:
-    MassOperator(std::shared_ptr<fem::FunctionSpace>& V, int bdegree) : _dofmap(0) {
+    MassOperatorCPU(std::shared_ptr<fem::FunctionSpace>& V, int bdegree) : _dofmap(0) {
       std::shared_ptr<const mesh::Mesh> mesh = V->mesh();
       int tdim = mesh->topology().dim();
       _dofmap = V->dofmap()->list();

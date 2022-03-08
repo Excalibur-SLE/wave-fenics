@@ -10,6 +10,7 @@
 #include <cuda_profiler_api.h>
 
 // Helper functions
+#include "precompute.hpp"
 #include <cuda/allocator.hpp>
 #include <cuda/array.hpp>
 #include <cuda/la.hpp>
@@ -64,7 +65,7 @@ int main(int argc, char* argv[]) {
     // Create a Basix continuous Lagrange element of given degree
     basix::FiniteElement e = basix::element::create_lagrange(
         mesh::cell_type_to_basix_type(mesh::CellType::hexahedron), degree,
-        basix::element::lagrange_variant::equispaced, true);
+        basix::element::lagrange_variant::equispaced, false);
 
     // Create a scalar function space
     std::shared_ptr<fem::FunctionSpace> V
@@ -92,7 +93,7 @@ int main(int argc, char* argv[]) {
     // =====================================
     // Tabulate basis functions at quadrature points
     // 1 - Tabulate quadrature points and weights
-    int q = 2 * degree + 2; // Quadrature degree
+    int q = 2 * degree; // Quadrature degree
     auto cell = basix::cell::type::hexahedron;
     auto quad = basix::quadrature::type::gauss_jacobi;
     auto [points, weights] = basix::quadrature::make_quadrature(quad, cell, q);
@@ -118,15 +119,20 @@ int main(int argc, char* argv[]) {
     dofmap.set(dof_array);
 
     // =====================================
-    // Compute determinant of Jacobian
-    // TODO: precompute jacobian function in perecomputation.hpp
+    // Compute determinant of jacobian at quadrature points
+    xt::xtensor<double, 4> J = compute_jacobian(mesh, points);
+    xt::xtensor<double, 2> _detJ = compute_jacobian_determinant(J);
+    for (std::size_t i = 0; i < _detJ.shape(0); i++)
+      for (std::size_t j = 0; j < _detJ.shape(1); j++)
+        _detJ(i, j) = _detJ(i, j) * weights[j];
     cuda::array<double> detJ(Nq);
+    detJ.set(_detJ);
 
     // Allocate memory for working arrays on device
     cuda::array<double> ue(Ne);
     cuda::array<double> uq(Nq);
     cuda::array<double> xe(Ne);
-    
+
     double alpha = 1;
     double beta = 0;
 
@@ -147,19 +153,21 @@ int main(int argc, char* argv[]) {
     // Xe^T = B^T Uq^T
     cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, ndofs, ncells, nquads, &alpha,
                 phi.data(), ndofs, uq.data(), nquads, &beta, xe.data(), ndofs);
-    cudaDeviceSynchronize();
-
     // =====================================
     // Apply scatter operator
     // x[dofmap] <- Xe
     // From element based dof vector to global dof vector
     scatter(xe.size(), dofmap.data(), xe.data(), y.mutable_array().data(), 512);
+    cudaDeviceSynchronize();
     t = MPI_Wtime() - t;
+
+    std::cout << y.norm() << std::endl;
 
     std::cout << "Number of cells: " << ncells;
     std::cout << "\nNumber of dofs: " << ndofs;
     std::cout << "\nNumber of quads: " << nquads;
-    std::cout << "\n#FLOPs: " << ((4 * ncells * nquads * ndofs) + Ne) / t;
+    double ops = 4 * ncells * nquads * ndofs + ncells * nquads;
+    std::cout << "\n#FLOPs: " << ops;
     std::cout << "\nDOF/s: " << V->dofmap()->index_map->size_local() / t;
     std::cout << std::endl;
   }
