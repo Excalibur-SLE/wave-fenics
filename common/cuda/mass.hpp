@@ -76,9 +76,8 @@ public:
   void apply(const Vector& x, Vector& y) {
     const T* _x = x.array().data();
     T* _y = y.mutable_array().data();
-    std::size_t Ne = _num_cells * _num_dofs;
     gather<T>(dofarray->size(), dofarray->data(), _x, xe->data(), 512);
-    mass_apply<T>(Ne, xe->data(), phi->data(), detJ->data(), ye->data());
+    mass_apply<T>(_num_cells, xe->data(), phi->data(), detJ->data(), ye->data());
     scatter<T>(dofarray->size(), dofarray->data(), ye->data(), _y, 512);
   }
 
