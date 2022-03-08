@@ -78,6 +78,8 @@ int cg(cublasHandle_t handle, la::Vector<T, Alloc>& x, const la::Vector<T, Alloc
     // y = A.p;
     matvec_function(p, y);
 
+    vu.update_rev(p);
+    
     // Calculate alpha = r.r/p.y
     T pdoty_local = inner_product<la::Vector<T, Alloc>>(handle, p, y);
     T pdoty = mpi_reduce<T>(comm, pdoty_local);
