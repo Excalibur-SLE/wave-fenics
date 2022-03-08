@@ -2,6 +2,7 @@
 // SPDX-License-Identifier:    MIT
 
 #include "streaming.hpp"
+#include "VectorUpdater.hpp"
 #include <cuda_runtime.h>
 
 #include <dolfinx/common/MPI.h>
@@ -58,6 +59,8 @@ int cg(cublasHandle_t handle, la::Vector<T, Alloc>& x, const la::Vector<T, Alloc
   T rnorm0_local = squared_norm<la::Vector<T, Alloc>>(handle, r);
   T rnorm0 = mpi_reduce<T>(comm, rnorm0_local);
 
+  VectorUpdater<double, CUDA::allocator<double>> vu(p);
+  
   // Iterations of CG
   const T rtol2 = rtol * rtol;
   T rnorm = rnorm0;
@@ -67,7 +70,10 @@ int cg(cublasHandle_t handle, la::Vector<T, Alloc>& x, const la::Vector<T, Alloc
 
     // Update ghosts before MatVec
     if (mpi_size > 1)
-      p.scatter_fwd();
+      {
+	//p.scatter_fwd();
+	vu.update_fwd(p);
+      }
 
     // MatVec
     // y = A.p;
