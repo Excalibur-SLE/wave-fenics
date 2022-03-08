@@ -8,6 +8,7 @@
 #include "cublas_v2.h"
 #include "utils.hpp"
 #include <dolfinx.h>
+#include "CUDA/mass.hpp"
 
 using namespace dolfinx;
 namespace po = boost::program_options;
@@ -85,7 +86,6 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "Reverse scatter";
     VectorUpdater vu(bvec);
     vu.update_rev(bvec);    
-    //    bvec.scatter_rev(common::IndexMap::Mode::add);
 
     std::function<void(const la::Vector<double, CUDA::allocator<double>>&,
 		       la::Vector<double, CUDA::allocator<double>>&)> matvec = [&](auto a, auto b){
