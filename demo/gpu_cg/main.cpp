@@ -19,9 +19,14 @@ int main(int argc, char* argv[]) {
   common::subsystem::init_logging(argc, argv);
   common::subsystem::init_mpi(argc, argv);
 
+  MPI_Comm mpi_comm{MPI_COMM_WORLD};
+  int mpi_rank = dolfinx::MPI::rank(mpi_comm);
+  std::string thread_name = "MPI: " + std::to_string(mpi_rank);
+  loguru::set_thread_name(thread_name.c_str());
+  
   auto [s, type, p, format, queue_type] = read_inputs(argc, argv);
 
-  MPI_Comm mpi_comm{MPI_COMM_WORLD};
+
   std::vector function_space
       = {functionspace_form_bp1_a1, functionspace_form_bp1_a2, functionspace_form_bp1_a3,
          functionspace_form_bp1_a4, functionspace_form_bp1_a5};
@@ -58,7 +63,7 @@ int main(int argc, char* argv[]) {
 
     
     int mpi_size = dolfinx::MPI::size(mpi_comm);
-    int rank = dolfinx::MPI::rank(mpi_comm);
+    int mpi_rank = dolfinx::MPI::rank(mpi_comm);
 
     int numGpus = 0;
     cudaGetDeviceCount(&numGpus);
@@ -70,7 +75,7 @@ int main(int argc, char* argv[]) {
 
     cublasHandle_t handle;
     cublasCreate(&handle);
-    cudaSetDevice(rank);
+    cudaSetDevice(mpi_rank);
 
     std::function<void(const la::Vector<double, CUDA::allocator<double>>&,
 		       la::Vector<double, CUDA::allocator<double>>&)> matvec = [&](auto a, auto b){
