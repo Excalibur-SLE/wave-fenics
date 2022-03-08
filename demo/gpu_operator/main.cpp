@@ -167,7 +167,7 @@ int main(int argc, char* argv[]) {
     std::cout << "\nNumber of dofs: " << ndofs;
     std::cout << "\nNumber of quads: " << nquads;
     double ops = 4 * ncells * nquads * ndofs + ncells * nquads;
-    std::cout << "\n#FLOPs: " << ops;
+    std::cout << "\n#Elapsed Time: " << t << std::endl;
     std::cout << "\nDOF/s: " << V->dofmap()->index_map->size_local() / t;
     std::cout << std::endl;
   }

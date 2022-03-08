@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
     fem::Function<double> u(V);
     // Interpolate sin(2 \pi x[0]) in the scalar Lagrange finite element space
     constexpr double PI = xt::numeric_constants<double>::PI;
-    u.interpolate([PI](auto&& x) { return xt::ones_like(xt::row(x, 0)); });
+    u.interpolate([PI](auto&& x) { return PI*xt::row(x, 0); });
 
     CUDA::allocator<double> allocator{};
     la::Vector<double, decltype(allocator)> x(idxmap, 1, allocator);
