@@ -123,12 +123,14 @@ public:
       assert(status == MPI_SUCCESS);
     }
 
-    LOG(INFO) << "MPI Send";
+    LOG(INFO) << "MPI Send " << d_send_buffer->data();
     for (std::size_t i = 0; i < fwd_send_neighbors.size(); ++i)
     {
+      LOG(INFO) << "send " << i << "->" << fwd_send_neighbors[i] << " = "<< displs_send_fwd[i]
+		<< ":" << sizes_send_fwd[i + 1] ;
       int status = MPI_Send(d_send_buffer->data() + displs_send_fwd[i],
-                            sizes_send_fwd[i + 1], data_type,
-                            fwd_send_neighbors[i], 0, fwd_comm);
+			    sizes_send_fwd[i + 1], data_type,
+			    fwd_send_neighbors[i], 0, fwd_comm);
       assert(status == MPI_SUCCESS);
     }
   }

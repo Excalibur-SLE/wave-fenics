@@ -65,6 +65,9 @@ int main(int argc, char* argv[]) {
     la::Vector<double, decltype(allocator)> uvec(V->dofmap()->index_map, bs, allocator);
     LOG(INFO) << "Assemble vector";
     fem::assemble_vector(bvec.mutable_array(), *L);
+
+    LOG(INFO) << "num_ghosts = " << bvec.map()->num_ghosts();
+
     LOG(INFO) << "Reverse scatter";
     bvec.scatter_rev(common::IndexMap::Mode::add);
 
