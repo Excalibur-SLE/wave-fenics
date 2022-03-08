@@ -75,12 +75,10 @@ int cg(cublasHandle_t handle, la::Vector<T, Alloc>& x, const la::Vector<T, Alloc
     ++k;
 
     // Update ghosts before MatVec
-    if (mpi_size > 1)
-      {
-	LOG(INFO) << "Update forward";
-	// p.scatter_fwd();
-	vu.update_fwd(p);
-      }
+    LOG(INFO) << "Update forward";
+    // p.scatter_fwd();
+    vu.update_fwd(p);
+  
 
     // MatVec
     // y = A.p;

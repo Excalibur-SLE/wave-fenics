@@ -14,7 +14,7 @@ find_package(DOLFINX REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 find_package(Boost 1.70 REQUIRED program_options)
 
-set(CMAKE_CXX_FLAGS "-Ofast -march=native ${CMAKE_CXX_FLAGS} -Wall")
+# set(CMAKE_CXX_FLAGS "-Ofast -march=native ${CMAKE_CXX_FLAGS} -Wall")
 set(CMAKE_C_FLAGS "-Ofast -march=native ${CMAKE_C_FLAGS} -Wall")
 
 add_custom_command(
@@ -26,6 +26,6 @@ add_custom_command(
 add_executable(${PROJECT_NAME} main.cpp ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.c CUDA/scatter.cu)
 
 include_directories("../../../src")
-target_link_libraries(${PROJECT_NAME} PRIVATE ${CUDA_LIBRARIES} CUDA::cublas dolfinx Boost::program_options)
+target_link_libraries(${PROJECT_NAME} PRIVATE CUDA::cudart CUDA::cublas dolfinx Boost::program_options)
 target_include_directories(${PROJECT_NAME} PUBLIC SYSTEM ${CUDA_INCLUDE_DIRS})
 

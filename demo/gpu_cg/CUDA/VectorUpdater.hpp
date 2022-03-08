@@ -105,14 +105,11 @@ public:
 
   void update_fwd_begin(const la::Vector<T, AllocatorT>& x)
   {
-    LOG(INFO) << "gather";
-    
     // Step 1: pack send buffer
     xtl::span<const T> x_local_const = x.array();
     gather(d_indices->size(), d_indices->data(), x_local_const.data(),
            d_send_buffer->data(), cuda_block_size);
 
-    LOG(INFO) << "MPI Irecv";
     // Step 2: begin scatter
     requests.resize(fwd_recv_neighbors.size());
     for (std::size_t i = 0; i < fwd_recv_neighbors.size(); ++i)
@@ -123,11 +120,8 @@ public:
       assert(status == MPI_SUCCESS);
     }
 
-    LOG(INFO) << "MPI Send " << d_send_buffer->data();
     for (std::size_t i = 0; i < fwd_send_neighbors.size(); ++i)
     {
-      LOG(INFO) << "send " << i << "->" << fwd_send_neighbors[i] << " = "<< displs_send_fwd[i]
-		<< ":" << sizes_send_fwd[i + 1] ;
       int status = MPI_Send(d_send_buffer->data() + displs_send_fwd[i],
 			    sizes_send_fwd[i + 1], data_type,
 			    fwd_send_neighbors[i], 0, fwd_comm);
@@ -137,12 +131,10 @@ public:
 
   void update_fwd_end(la::Vector<T, AllocatorT>& x)
   {
-    LOG(INFO) << "MPI Waitall";
     int status
         = MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
     assert(status == MPI_SUCCESS);
 
-    LOG(INFO) << "gather_ghost";
     // Step 3: copy into ghost area
     xtl::span<T> x_remote(x.mutable_array().data() + x.map()->size_local(),
                           x.map()->num_ghosts());

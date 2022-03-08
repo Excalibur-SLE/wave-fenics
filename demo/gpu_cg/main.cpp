@@ -20,9 +20,25 @@ int main(int argc, char* argv[]) {
   common::subsystem::init_mpi(argc, argv);
 
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
+  int mpi_size = dolfinx::MPI::size(mpi_comm);
   int mpi_rank = dolfinx::MPI::rank(mpi_comm);
   std::string thread_name = "MPI: " + std::to_string(mpi_rank);
   loguru::set_thread_name(thread_name.c_str());
+
+  int numGpus = 0;
+  cudaGetDeviceCount(&numGpus);
+  
+  if (numGpus != mpi_size && mpi_size != 1) {
+    throw std::runtime_error("The number of MPI processes should be less or equal the "
+			     "number of available devices.");
+  }
+  
+  LOG(INFO) << "Setting device to " << mpi_rank;
+  cudaSetDevice(mpi_rank);
+  
+  LOG(INFO) << "Create CUBLAS handle";
+  cublasHandle_t handle;
+  cublasCreate(&handle);
   
   auto [s, type, p, format, queue_type] = read_inputs(argc, argv);
 
@@ -66,37 +82,16 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << "Assemble vector";
     fem::assemble_vector(bvec.mutable_array(), *L);
 
-    LOG(INFO) << "num_ghosts = " << bvec.map()->num_ghosts();
-
     LOG(INFO) << "Reverse scatter";
-    bvec.scatter_rev(common::IndexMap::Mode::add);
-
-    
-    int mpi_size = dolfinx::MPI::size(mpi_comm);
-    int mpi_rank = dolfinx::MPI::rank(mpi_comm);
-
-    int numGpus = 0;
-    cudaGetDeviceCount(&numGpus);
-
-    if (numGpus != mpi_size && mpi_size != 1) {
-      throw std::runtime_error("The number of MPI processes should be less or equal the "
-                               "number of available devices.");
-    }
-
-    LOG(INFO) << "Setting device to " << mpi_rank;
-    cudaSetDevice(mpi_rank);
-
-    LOG(INFO) << "Create CUBLAS handle";
-    cublasHandle_t handle;
-    cublasCreate(&handle);
-
+    VectorUpdater vu(bvec);
+    vu.update_rev(bvec);    
+    //    bvec.scatter_rev(common::IndexMap::Mode::add);
 
     std::function<void(const la::Vector<double, CUDA::allocator<double>>&,
 		       la::Vector<double, CUDA::allocator<double>>&)> matvec = [&](auto a, auto b){
 			 LOG(INFO) << "matvec function";
 			 copy<la::Vector<double, CUDA::allocator<double>>>(handle, a, b);};
 
-    LOG(INFO) << "CG";
     int number_it = device::cg(handle, uvec, bvec, matvec, 50, 1e-4);
     std::cout << "its = " << number_it << "\n";
     
