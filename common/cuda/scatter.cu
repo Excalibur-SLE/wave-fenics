@@ -1,6 +1,18 @@
 #include "scatter.hpp"
 
 //-----------------------------------------------------------------------------
+template <typename T>
+static __global__ void _gather(const int N, const std::int32_t* __restrict__ indices,
+                               const T* __restrict__ in, T* __restrict__ out) {
+  int gid = blockIdx.x * blockDim.x + threadIdx.x;
+  if (gid < N) {
+    out[gid] = in[indices[gid]];
+  }
+}
+//-----------------------------------------------------------------------------
+
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 600)
+
 __device__ double _atomicAdd(double* address, const double val) {
   unsigned long long int* address_as_ull = (unsigned long long int*)address;
   unsigned long long int old = *address_as_ull, assumed;
@@ -14,14 +26,14 @@ __device__ double _atomicAdd(double* address, const double val) {
   return __longlong_as_double(old);
 }
 //-----------------------------------------------------------------------------
-template <typename T>
-static __global__ void _gather(const int N, const std::int32_t* __restrict__ indices,
-                               const T* __restrict__ in, T* __restrict__ out) {
+static __global__ void _scatter(std::int32_t N, const int32_t* __restrict__ indices,
+                                const double* __restrict__ in, double* __restrict__ out) {
   int gid = blockIdx.x * blockDim.x + threadIdx.x;
   if (gid < N) {
-    out[gid] = in[indices[gid]];
+    _atomicAdd(&out[indices[gid]], in[gid]);
   }
 }
+#endif
 //-----------------------------------------------------------------------------
 template <typename T>
 static __global__ void _scatter(std::int32_t N, const int32_t* __restrict__ indices,
@@ -31,16 +43,6 @@ static __global__ void _scatter(std::int32_t N, const int32_t* __restrict__ indi
     atomicAdd(&out[indices[gid]], in[gid]);
   }
 }
-//-----------------------------------------------------------------------------
-#if __CUDA_ARCH__ < 600
-static __global__ void _scatter(std::int32_t N, const int32_t* __restrict__ indices,
-                                const double* __restrict__ in, double* __restrict__ out) {
-  int gid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (gid < N) {
-    _atomicAdd(&out[indices[gid]], in[gid]);
-  }
-}
-#endif
 //-----------------------------------------------------------------------------
 template <typename T>
 void gather(std::int32_t N, const std::int32_t* indices, const T* in, T* out,
@@ -65,12 +67,9 @@ void scatter(std::int32_t N, const std::int32_t* indices, const T* in, T* out,
 template void gather<double>(std::int32_t, const std::int32_t*, const double*, double*,
                              int);
 template void gather<float>(std::int32_t, const std::int32_t*, const float*, float*, int);
-template void gather<std::int32_t>(std::int32_t, const std::int32_t*, const std::int32_t*,
-                                   std::int32_t*, int);
 template void scatter<double>(std::int32_t, const std::int32_t*, const double*, double*,
                               int);
 template void scatter<float>(std::int32_t, const std::int32_t*, const float*, float*,
                              int);
-template void scatter<std::int32_t>(std::int32_t, const std::int32_t*,
-                                    const std::int32_t*, std::int32_t*, int);
 //-----------------------------------------------------------------------------
+
