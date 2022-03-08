@@ -56,8 +56,6 @@ int main(int argc, char* argv[]) {
     fem::assemble_vector(bvec.mutable_array(), *L);
     bvec.scatter_rev(common::IndexMap::Mode::add);
 
-    std::function<void(const la::Vector<double, CUDA::allocator<double>>&,
-		       la::Vector<double, CUDA::allocator<double>>&)> matvec;
     
     int mpi_size = dolfinx::MPI::size(mpi_comm);
     int rank = dolfinx::MPI::rank(mpi_comm);
@@ -74,6 +72,11 @@ int main(int argc, char* argv[]) {
     cublasCreate(&handle);
     cudaSetDevice(rank);
 
+    std::function<void(const la::Vector<double, CUDA::allocator<double>>&,
+		       la::Vector<double, CUDA::allocator<double>>&)> matvec = [&](auto a, auto b){
+			 copy<la::Vector<double, CUDA::allocator<double>>>(handle, a, b);};
+
+    
     int number_it = device::cg(handle, uvec, bvec, matvec, 50, 1e-4);
     std::cout << "its = " << number_it << "\n";
     
