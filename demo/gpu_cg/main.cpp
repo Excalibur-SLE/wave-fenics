@@ -98,7 +98,7 @@ int main(int argc, char* argv[]) {
     MassOperator<double> op(V, e, quad, 3);
 
     std::function<void(const la::Vector<double, CUDA::allocator<double>>&,
-		       la::Vector<double, CUDA::allocator<double>>&)> matvec = [&](auto a, auto b){
+		       la::Vector<double, CUDA::allocator<double>>&)> matvec = [&](auto& a, auto& b){
 			 LOG(INFO) << "matvec function";
 			 op.apply(a,b);};
 
