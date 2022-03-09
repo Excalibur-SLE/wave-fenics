@@ -1,3 +1,4 @@
+
 #include "bp1.h"
 #include <basix/e-lagrange.h>
 #include <basix/quadrature.h>
@@ -5,6 +6,8 @@
 #include "CUDA/cg.hpp"
 #include "mesh.hpp"
 #include "operators.hpp"
+
+#include <cuda_profiler_api.h>
 
 #include "cublas_v2.h"
 #include "utils.hpp"
@@ -22,21 +25,29 @@ int main(int argc, char* argv[]) {
   common::subsystem::init_mpi(argc, argv);
 
   MPI_Comm mpi_comm{MPI_COMM_WORLD};
-  int mpi_size = dolfinx::MPI::size(mpi_comm);
   int mpi_rank = dolfinx::MPI::rank(mpi_comm);
+
+  // Get local rank and size
+  MPI_Comm local_comm;
+  MPI_Comm_split_type(mpi_comm, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL,
+		      &local_comm);  
+  int local_rank = dolfinx::MPI::rank(local_comm);
+  int local_size = dolfinx::MPI::size(local_comm);
+  MPI_Comm_free(&local_comm);
+
   std::string thread_name = "MPI: " + std::to_string(mpi_rank);
   loguru::set_thread_name(thread_name.c_str());
 
   int numGpus = 0;
   cudaGetDeviceCount(&numGpus);
   
-  if (numGpus != mpi_size && mpi_size != 1) {
+  if (numGpus != local_size && local_size != 1) {
     throw std::runtime_error("The number of MPI processes should be less or equal the "
 			     "number of available devices.");
   }
   
-  LOG(INFO) << "Setting device to " << mpi_rank;
-  cudaSetDevice(mpi_rank);
+  LOG(INFO) << "Setting device to:" << local_rank;
+  cudaSetDevice(local_rank);
   
   LOG(INFO) << "Create CUBLAS handle";
   cublasHandle_t handle;
@@ -102,8 +113,13 @@ int main(int argc, char* argv[]) {
 			 LOG(INFO) << "matvec function";
 			 op.apply(a,b);};
 
+    // Start profiling
+    cudaProfilerStart();
+    
     int number_it = device::cg(handle, uvec, bvec, matvec, 50, 1e-4);
     std::cout << "its = " << number_it << "\n";
+
+    cudaProfilerStop();
     
     cublasDestroy(handle);
   }

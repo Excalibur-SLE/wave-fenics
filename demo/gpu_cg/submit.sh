@@ -12,7 +12,7 @@ module purge
 module load baskerville
 module load OpenMPI
 
-# nsys profile --capture-range=cudaProfilerApi --trace=cuda,mpi mpirun -n 4 ./bp1
+nsys profile --capture-range=cudaProfilerApi --trace=cuda,mpi mpirun -n 4 ./bp1 --p 2 --s 20
 
-mpirun -n 4 ./bp1 --s 6
+# mpirun -n 4 ./bp1 --s 6
 

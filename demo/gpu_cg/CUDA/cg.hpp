@@ -8,6 +8,8 @@
 #include <dolfinx/common/MPI.h>
 #include <dolfinx/la/Vector.h>
 
+#include <nvToolsExt.h>
+
 namespace {
 template <typename T>
 inline T mpi_reduce(MPI_Comm comm, T value) {
@@ -69,6 +71,7 @@ int cg(cublasHandle_t handle, la::Vector<T, Alloc>& x, const la::Vector<T, Alloc
   while (k < kmax) {
     ++k;
 
+    nvtxMarkA("matvec");
     // Update ghosts before MatVec
     // p.scatter_fwd();
     vu.update_fwd(p);
@@ -79,7 +82,8 @@ int cg(cublasHandle_t handle, la::Vector<T, Alloc>& x, const la::Vector<T, Alloc
     matvec_function(p, y);
 
     vu.update_rev(p);
-    
+
+    nvtxMarkA("reduction");
     // Calculate alpha = r.r/p.y
     T pdoty_local = inner_product<la::Vector<T, Alloc>>(handle, p, y);
     T pdoty = mpi_reduce<T>(comm, pdoty_local);
@@ -89,10 +93,12 @@ int cg(cublasHandle_t handle, la::Vector<T, Alloc>& x, const la::Vector<T, Alloc
     // Update x and r
     // x = x + alpha*p
     // r = r - alpha*y
+    nvtxMarkA("axpy");
     axpy<T, la::Vector<T, Alloc>>(handle, alpha, p, x);
     axpy<T, la::Vector<T, Alloc>>(handle, -alpha, y, r);
 
     // Update rnorm
+    nvtxMarkA("norm");
     T rnorm_new_local = squared_norm<la::Vector<T, Alloc>>(handle, r);
     T rnorm_new = mpi_reduce<T>(comm, rnorm_new_local);
 
@@ -104,6 +110,7 @@ int cg(cublasHandle_t handle, la::Vector<T, Alloc>& x, const la::Vector<T, Alloc
     if (rnorm / rnorm0 < rtol2)
       break;
 
+    nvtxMarkA("update");
     // Update p.
     // p = beta*p + r
     scale<T, la::Vector<T, Alloc>>(handle, beta, p);
