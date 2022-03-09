@@ -99,6 +99,8 @@ int cg(cublasHandle_t handle, la::Vector<T, Alloc>& x, const la::Vector<T, Alloc
     const T beta = rnorm_new / rnorm;
     rnorm = rnorm_new;
 
+    LOG(INFO) << "rnorm = " << rnorm;
+    
     if (rnorm / rnorm0 < rtol2)
       break;
 
