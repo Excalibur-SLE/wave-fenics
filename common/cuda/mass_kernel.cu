@@ -5,39 +5,38 @@
 template <typename T, int ndofs, int bs>
 static __global__ void _mass_apply_shm(std::int32_t num_elements, const T* xe,
                                        const T* phi, const T* detJ, T* ye) {
-  int element = blockIdx.x * blockDim.x + threadIdx.x;
-  int id = element * ndofs + threadIdx.y;
+  int id = blockIdx.x * blockDim.x + threadIdx.x;
 
-  // Allocate shared memory
-  __shared__ T _xe[ndofs][bs];
-  __shared__ T _xq[ndofs][bs];
-  __shared__ T _phi[ndofs][ndofs];
+  int element = threadIdx.x / 32;
+  int dof = threadIdx.x % 32;
 
-  if (element < num_elements && threadIdx.y < ndofs) {
-    // Prepare basis functions (load to shared memory)
-    // Load Phi^T to shared memory
-    for (int i = threadIdx.x; i < ndofs; i += blockDim.x)
-      for (int j = threadIdx.y; j < ndofs; j += blockDim.y)
-        _phi[j][i] = phi[i * ndofs + j];
+  // // Allocate shared memory
+  __shared__ T _xe[bs][ndofs];
+  __shared__ T _xq[bs][ndofs];
+  __shared__ T _phi[ndofs * ndofs];
 
-    _xe[threadIdx.x][threadIdx.y] = xe[id];
-    __syncthreads();
+  int Ne = num_elements * ndofs;
+
+  if (dof < ndofs && id < Ne) {
+    for (int i = threadIdx.x; i < ndofs * ndofs; i += blockDim.x) {
+      _phi[i] = phi[i];
+    }
+    _xe[element][dof] = xe[id];
 
     // Evaluate coefficients at quadrature points
     T wq = 0;
+#pragma unroll
     for (int j = 0; j < ndofs; j++)
-      wq += _xe[j][threadIdx.x] * _phi[threadIdx.y][j];
+      wq += _xe[element][j] * _xe[element][j];
 
-    _xq[threadIdx.y][threadIdx.x] = detJ[id] * wq;
-
-    for (int i = threadIdx.x; i < ndofs; i += blockDim.x)
-      for (int j = threadIdx.y; j < ndofs; j += blockDim.y)
-        _phi[i][j] = phi[i * ndofs + j];
+    _xq[element][dof] = detJ[id] * wq;
 
     T yi = 0;
+#pragma unroll
     for (int iq = 0; iq < ndofs; iq++) {
-      yi += _xq[iq][threadIdx.x] * _phi[threadIdx.y][iq];
+      yi += _xq[element][iq] * _xq[element][iq];
     }
+
     ye[id] = yi;
   }
 }
@@ -91,10 +90,8 @@ void mass_apply(int num_elements, const T* xe, const T* phi, const T* detJ, T* y
     int dimx = 32 * ((ndofs + 32 - 1) / 32);
     int block_size = dimx * cells_per_block;
     const int num_blocks = (num_elements * dimx + block_size - 1) / block_size;
-    dim3 dimBlock(cells_per_block, dimx);
-    dim3 dimGrid(num_blocks, 1);
-    std::cout << num_blocks << std::endl;
-    cudaDeviceSynchronize();
+    dim3 dimBlock(block_size);
+    dim3 dimGrid(num_blocks);
     _mass_apply_shm<T, ndofs, cells_per_block>
         <<<dimGrid, dimBlock>>>(num_elements, xe, phi, detJ, ye);
   }
