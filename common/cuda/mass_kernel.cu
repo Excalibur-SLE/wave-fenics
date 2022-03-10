@@ -27,14 +27,14 @@ static __global__ void _mass_apply_shm(std::int32_t num_elements, const T* xe,
     T wq = 0;
 #pragma unroll
     for (int j = 0; j < ndofs; j++)
-      wq += _xe[element][j] * _xe[element][j];
+      wq += _xe[element][j] * _phi[dof * ndofs + j];
 
     _xq[element][dof] = detJ[id] * wq;
 
     T yi = 0;
 #pragma unroll
     for (int iq = 0; iq < ndofs; iq++) {
-      yi += _xq[element][iq] * _xq[element][iq];
+      yi += _xq[element][iq] * _phi[iq * ndofs + dof];
     }
 
     ye[id] = yi;
@@ -78,7 +78,7 @@ static __global__ void _mass_apply(std::int32_t num_elements, const T* xe, const
 // ------------------------------------------------------------------//
 template <typename T, int ndofs>
 void mass_apply(int num_elements, const T* xe, const T* phi, const T* detJ, T* ye) {
-  bool simple = true;
+  bool simple = false;
   if (simple) {
     int block_size = 32 * ((ndofs + 32 - 1) / 32);
     const int num_blocks = num_elements / 8;

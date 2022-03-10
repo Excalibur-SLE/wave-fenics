@@ -79,7 +79,6 @@ int main(int argc, char* argv[]) {
     int ndofs = e.dim();
 
     fem::Function<double> u(V);
-    // Interpolate sin(2 \pi x[0]) in the scalar Lagrange finite element space
     constexpr double PI = xt::numeric_constants<double>::PI;
     u.interpolate([PI](auto&& x) { return PI * xt::row(x, 0); });
 
