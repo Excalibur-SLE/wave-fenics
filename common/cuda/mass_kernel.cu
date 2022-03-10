@@ -6,9 +6,9 @@ template <typename T, int ndofs, int bs>
 static __global__ void _mass_apply_shm(std::int32_t num_elements, const T* xe,
                                        const T* phi, const T* detJ, T* ye) {
   int id = blockIdx.x * blockDim.x + threadIdx.x;
-
-  int element = threadIdx.x / 32;
-  int dof = threadIdx.x % 32;
+  int padded_dofs = 32 * ((ndofs + 32 - 1) / 32);
+  int element = threadIdx.x / padded_dofs;
+  int dof = threadIdx.x % padded_dofs;
 
   // // Allocate shared memory
   __shared__ T _xe[bs][ndofs];
@@ -22,7 +22,10 @@ static __global__ void _mass_apply_shm(std::int32_t num_elements, const T* xe,
       _phi[i] = phi[i];
     }
     _xe[element][dof] = xe[id];
-
+  }
+  __syncthreads();
+  
+  if (dof < ndofs && id < Ne) {
     // Evaluate coefficients at quadrature points
     T wq = 0;
 #pragma unroll
@@ -30,13 +33,15 @@ static __global__ void _mass_apply_shm(std::int32_t num_elements, const T* xe,
       wq += _xe[element][j] * _phi[dof * ndofs + j];
 
     _xq[element][dof] = detJ[id] * wq;
-
+  }
+  __syncthreads();
+  
+  if (dof < ndofs && id < Ne) {
     T yi = 0;
 #pragma unroll
     for (int iq = 0; iq < ndofs; iq++) {
       yi += _xq[element][iq] * _phi[iq * ndofs + dof];
     }
-
     ye[id] = yi;
   }
 }
