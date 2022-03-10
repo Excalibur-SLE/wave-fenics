@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
     fem::Function<double> u(V);
     // Interpolate sin(2 \pi x[0]) in the scalar Lagrange finite element space
     constexpr double PI = xt::numeric_constants<double>::PI;
-    u.interpolate([PI](auto&& x) { return PI*xt::row(x, 0); });
+    u.interpolate([PI](auto&& x) { return PI * xt::row(x, 0); });
 
     CUDA::allocator<double> allocator{};
     la::Vector<double, decltype(allocator)> x(idxmap, 1, allocator);
@@ -92,7 +92,8 @@ int main(int argc, char* argv[]) {
     linalg::prefetch(0, y);
 
     auto quad = basix::quadrature::type::gll;
-    MassOperator<double> op(V, e, quad, degree+1);
+    int qdegree = (degree > 1) ? degree + 1 : degree;
+    MassOperator<double> op(V, e, quad, qdegree);
 
     double t = MPI_Wtime();
     op.apply(x, y);
